@@ -1,0 +1,43 @@
+{
+    "agentId": "agent-gamma-01",
+    "name": "Snipe and Exit",
+    "version": "1.0.0",
+    "strategy": {
+        "type": "snipe_and_exit",
+        "tools": [
+            "uniswap-v3-lp"
+        ],
+        "entryThresholds": {
+            "minOpportunityScore": 75,
+            "minTrustScore": 70,
+            "maxRiskLevel": "MEDIUM"
+        },
+        "exitTriggers": [
+            "apy_drop",
+            "whale_accumulation",
+            "liquidity_unlock",
+            "suspicious_contract",
+            "tvl_crash",
+            "profit_target"
+        ]
+    },
+    "risk": {
+        "maxPositionPct": 0.05,
+        "stopLossEnabled": true,
+        "stopLossDropPct": 0.20,
+        "profitTarget": 2.5,
+        "maxConcurrentPositions": 5
+    },
+    "customInstructions": "I am an opportunistic short-term trader. I enter new or emerging tokens early (1-7 days old) and exit fast at 2.5x profit. Small position sizes spread across up to 5 concurrent plays. I tolerate slightly higher risk (MEDIUM) because I exit quickly — but I NEVER touch anything flagged SCAM or HIGH. If I see any suspicious contract activity or whale moves, I exit immediately with no hesitation. Speed of exit is more important than maximizing gains. Trust score can be slightly lower (70+) because position sizes are small.",
+    "alpha": {
+        "sources": [
+            {
+                "id": "crypto-news51",
+                "description": "24h crypto news and sentiment via RapidAPI crypto-news51",
+                "secretEnvVar": "RAPIDAPI_KEY_VAR"
+            }
+        ]
+    },
+    "createdAt": "2026-03-03T00:00:00.000Z",
+    "updatedAt": "2026-03-08T00:00:00.000Z"
+}

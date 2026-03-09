@@ -1,0 +1,42 @@
+{
+    "agentId": "agent-alpha-01",
+    "name": "CLMM LP Farmer",
+    "version": "1.0.0",
+    "strategy": {
+        "type": "clmm_lp",
+        "tools": [
+            "uniswap-v3-lp"
+        ],
+        "entryThresholds": {
+            "minOpportunityScore": 80,
+            "minTrustScore": 75,
+            "maxRiskLevel": "MEDIUM"
+        },
+        "exitTriggers": [
+            "apy_drop",
+            "whale_accumulation",
+            "tvl_crash",
+            "suspicious_contract",
+            "profit_target"
+        ]
+    },
+    "risk": {
+        "maxPositionPct": 0.1,
+        "stopLossEnabled": true,
+        "stopLossDropPct": 0.15,
+        "profitTarget": 2.0,
+        "maxConcurrentPositions": 3
+    },
+    "customInstructions": "Evaluate pools based on quantitative on-chain signals only — TVL, fee APY, pool age, and liquidity depth. Do NOT penalize a pool solely because the token name is unfamiliar. Score HIGH opportunity if: TVL > $100K, fee APY > 50%, pool age > 30 days. Score LOW trust only if there are concrete red flags in the data (e.g., extremely low TVL, pool age < 1 day, or suspicious tick range). Be data-driven and allocate scores proportionally to the metrics provided.",
+    "alpha": {
+        "sources": [
+            {
+                "id": "crypto-news51",
+                "description": "24h crypto news and sentiment via RapidAPI crypto-news51",
+                "secretEnvVar": "RAPIDAPI_KEY_VAR"
+            }
+        ]
+    },
+    "createdAt": "2026-03-03T00:00:00.000Z",
+    "updatedAt": "2026-03-08T00:00:00.000Z"
+}

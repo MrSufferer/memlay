@@ -1,0 +1,14 @@
+{
+    "owner": "0x0000000000000000000000000000000000000000",
+    "s3Bucket": "memory-layer",
+    "s3Region": "ap-southeast-2",
+    "agentId": "agent-alpha-01",
+    "schedule": "0 * * * *",
+    "memoryRegistryAddress": "0x61C7120F79f17bf9e46dC14251efe5a2659aEfb1",
+    "evms": [
+        {
+            "chainSelectorName": "ethereum-testnet-sepolia",
+            "gasLimit": "200000"
+        }
+    ]
+}

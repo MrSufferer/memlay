@@ -1,0 +1,28 @@
+# ==========================================================================
+# CRE WORKFLOW SETTINGS — audit-reader (MemoryVault verified log retrieval)
+# ==========================================================================
+# HTTP-triggered protocol workflow that reads agent decision history from
+# MemoryVault (S3 decrypt + on-chain hash verification via MemoryRegistry).
+#
+# Test:
+#   cre workflow simulate protocol/audit-reader \
+#     --target staging-settings \
+#     --http-payload '{"agentId":"agent-alpha-01"}'
+
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "memoryvault-audit-reader-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../../secrets.yaml"
+
+# ==========================================================================
+production-settings:
+  user-workflow:
+    workflow-name: "memoryvault-audit-reader-production"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../../secrets.yaml"

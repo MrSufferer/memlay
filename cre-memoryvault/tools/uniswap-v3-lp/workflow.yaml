@@ -1,0 +1,33 @@
+# ==========================================================================
+# CRE WORKFLOW SETTINGS — uniswap-v3-lp (Scanner + Monitor Tool)
+# ==========================================================================
+
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "memoryvault-uniswap-v3-lp-staging"
+  workflow-artifacts:
+    workflow-path: "./scanner.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../../secrets.yaml"
+
+# ==========================================================================
+production-settings:
+  user-workflow:
+    workflow-name: "memoryvault-uniswap-v3-lp-production"
+  workflow-artifacts:
+    workflow-path: "./scanner.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../../secrets.yaml"
+
+# ==========================================================================
+# Monitor (staging) — uses subgraph metrics adapter at http://localhost:3002
+# ==========================================================================
+
+monitor-staging-settings:
+  user-workflow:
+    workflow-name: "memoryvault-uniswap-v3-lp-monitor-staging"
+  workflow-artifacts:
+    workflow-path: "./monitor.ts"
+    config-path: "./config.monitor.staging.json"
+    secrets-path: "../../secrets.yaml"

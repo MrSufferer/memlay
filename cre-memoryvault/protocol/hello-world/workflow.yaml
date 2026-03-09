@@ -1,0 +1,23 @@
+# ==========================================================================
+# CRE WORKFLOW SETTINGS — hello-world (scaffolding verification)
+# ==========================================================================
+# Minimal workflow to verify CRE project scaffolding is correct.
+# Will be removed after scaffolding is verified.
+
+# ==========================================================================
+staging-settings:
+  user-workflow:
+    workflow-name: "memoryvault-hello-world-staging"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../../secrets.yaml"
+
+# ==========================================================================
+production-settings:
+  user-workflow:
+    workflow-name: "memoryvault-hello-world-production"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.staging.json"
+    secrets-path: "../../secrets.yaml"

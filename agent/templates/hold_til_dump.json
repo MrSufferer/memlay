@@ -1,0 +1,33 @@
+{
+    "agentId": "agent-beta-01",
+    "name": "Hold Til Dump",
+    "version": "1.0.0",
+    "strategy": {
+        "type": "hold_til_dump",
+        "tools": [
+            "uniswap-v3-lp"
+        ],
+        "entryThresholds": {
+            "minOpportunityScore": 82,
+            "minTrustScore": 80,
+            "maxRiskLevel": "LOW"
+        },
+        "exitTriggers": [
+            "whale_accumulation",
+            "liquidity_unlock",
+            "suspicious_contract",
+            "tvl_crash",
+            "profit_target"
+        ]
+    },
+    "risk": {
+        "maxPositionPct": 0.08,
+        "stopLossEnabled": true,
+        "stopLossDropPct": 0.10,
+        "profitTarget": 3.0,
+        "maxConcurrentPositions": 2
+    },
+    "customInstructions": "I am a patient holder. I do not provide liquidity — I buy and hold tokens directly. Only enter tokens with strong fundamentals and a trust score above 80. I will hold through minor dips but exit immediately on any signs of a rug pull (whale accumulation, liquidity unlock within 48h, suspicious contract calls). Target 3x return before taking profit. Prefer tokens with >$2M TVL and established contract age (>30 days).",
+    "createdAt": "2026-03-03T00:00:00.000Z",
+    "updatedAt": "2026-03-03T00:00:00.000Z"
+}

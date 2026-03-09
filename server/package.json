@@ -1,0 +1,16 @@
+{
+    "name": "memoryvault-mock-data-api",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "start": "bun run server/mock-data-api.ts",
+        "dev": "bun --watch run server/mock-data-api.ts"
+    },
+    "dependencies": {
+        "express": "^4.21.0"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.0",
+        "@types/bun": "1.2.21"
+    }
+}

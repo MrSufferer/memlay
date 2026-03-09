@@ -1,0 +1,10 @@
+{
+    "schedule": "0 * * * *",
+    "apiUrl": "http://localhost:3002",
+    "maxAgeDays": 1825,
+    "activePositionPoolIds": [
+        "0x22c824e48220d837cdf294759059c0ad5c9dba20",
+        "0xf9188aff2b5fa1e1e5542995806706fe6a84f3f3",
+        "0xc6962004f452be9203591991d15f6b388e09e8d0"
+    ]
+}

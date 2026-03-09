@@ -1,0 +1,1 @@
+../../../../cre-memoryvault/protocol/tool-interface.ts

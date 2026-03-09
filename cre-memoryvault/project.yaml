@@ -1,0 +1,30 @@
+# ==========================================================================
+# CRE PROJECT SETTINGS FILE — MemoryVault Agent Protocol
+# ==========================================================================
+# Project-specific settings for CRE CLI targets.
+# Each target defines cre-cli, account, and rpcs groups.
+#
+# Usage:
+#   cre workflow simulate <workflow-dir> --target staging-settings
+#
+# All MemoryVault workflows (protocol + tools) share this project config.
+
+# ==========================================================================
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+
+# ==========================================================================
+production-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+
+# ==========================================================================
+# Monitor target — Arbitrum Sepolia RPC for monitor workflow simulation
+# ==========================================================================
+monitor-staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://arbitrum-sepolia.infura.io/v3/59574000b3804e53bbfa3e2d415c1259
