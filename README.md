@@ -472,6 +472,16 @@ mapping(string => bytes32[])   public agentHashes;
 
 ---
 
+## Hedera Deployment
+
+**First real HCS transaction on Hedera testnet** — HCS-11 profile inscription, TX `0.0.2659396-1774285643-082305883`, confirmed SUCCESS.
+
+Verify: `https://testnet.mirrornode.hedera.com/api/v1/transactions/0.0.2659396-1774285643-082305883`
+
+Full status and run instructions: [agent/README.md](agent/README.md)
+
+---
+
 ## Privacy Model
 
 | Who | What they can see |
