@@ -1,0 +1,71 @@
+{
+  "name": "MemoryVault Gemini Agent",
+  "description": "MemoryVault Agent Protocol with Gemini risk analysis, verifiable episodic memory, and pluggable CRE workflows for DeFi opportunity scanning and monitoring.",
+  "image": "{{BASE_URL}}/erc8004/agent-image.png",
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "supportedTrust": [
+    "reputation",
+    "crypto-economic"
+  ],
+  "active": true,
+  "x402Support": false,
+  "services": [
+    {
+      "name": "OASF",
+      "endpoint": "https://github.com/agntcy/oasf/",
+      "version": "v0.8.0",
+      "skills": [
+        "advanced_reasoning_planning/strategic_planning",
+        "evaluation_monitoring/anomaly_detection",
+        "security_privacy/vulnerability_analysis"
+      ],
+      "domains": [
+        "finance_and_business/investment_services",
+        "technology/blockchain/defi",
+        "technology/blockchain/smart_contracts"
+      ]
+    },
+    {
+      "name": "web",
+      "endpoint": "{{BASE_URL}}/workflows/uniswap-v3-lp/scanner",
+      "version": "v1"
+    },
+    {
+      "name": "web",
+      "endpoint": "{{BASE_URL}}/workflows/uniswap-v3-lp/monitor",
+      "version": "v1"
+    },
+    {
+      "name": "web",
+      "endpoint": "{{BASE_URL}}/workflows/memory-writer",
+      "version": "v1"
+    },
+    {
+      "name": "web",
+      "endpoint": "{{BASE_URL}}/workflows/audit-reader",
+      "version": "v1"
+    }
+  ],
+  "reliabilityEndpoints": [
+    {
+      "id": "scanner",
+      "endpoint": "{{BASE_URL}}/workflows/uniswap-v3-lp/scanner",
+      "method": "POST"
+    },
+    {
+      "id": "monitor",
+      "endpoint": "{{BASE_URL}}/workflows/uniswap-v3-lp/monitor",
+      "method": "POST"
+    },
+    {
+      "id": "memory-writer",
+      "endpoint": "{{BASE_URL}}/workflows/memory-writer",
+      "method": "POST"
+    },
+    {
+      "id": "audit-reader",
+      "endpoint": "{{BASE_URL}}/workflows/audit-reader",
+      "method": "POST"
+    }
+  ]
+}

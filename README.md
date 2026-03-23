@@ -15,7 +15,7 @@ Most DeFi agents today are monolithic: risk logic is coupled to specific protoco
 | Problem | Solution |
 |---|---|
 | Adding Aave = rewrite agent logic | **Standard Tool Interface** — each protocol = one CRE workflow. Agent skills don't change. |
-| LP entries are front-run by MEV | **ACE Privacy Layer** — private transfers; on-chain explorer shows nothing |
+| LP entries are front-run by MEV | **Zama Confidential Transfer Layer** — confidential token transfers for entry/exit |
 | No way to audit AI decisions | **MemoryVault** — S3 encrypted + keccak256 hash on Sepolia, committed *before* every action |
 
 ---
@@ -38,7 +38,7 @@ Most DeFi agents today are monolithic: risk logic is coupled to specific protoco
 │                                                                  │
 │  • MemoryVault:      S3 encrypted + keccak256 on-chain hash     │
 │  • CRE Orchestration: cron/HTTP triggers, workflow simulation   │
-│  • ACE Privacy:      private LP entry/exit (EIP-712 signed)     │
+│  • Zama Transfer:    confidential LP entry/exit                  │
 │  • Trader Template:  per-trader strategy + risk config          │
 └──────────────────────────────┬───────────────────────────────────┘
                                │ CRE workflows (ToolRequest/ToolResponse)
@@ -64,7 +64,7 @@ graph TD
     subgraph Protocol["Protocol Layer"]
         MV["MemoryVault\n(S3 + on-chain hash)"]
         CO["CRE Workflows\n(triggers, orchestration)"]
-        AP["ACE Privacy\n(private transfers)"]
+        AP["Zama Confidential\nTransfer"]
         TT["Trader Template Store"]
     end
 
@@ -87,7 +87,7 @@ graph TD
 |---|---|
 | `cre-memoryvault/protocol/` | Protocol CRE workflows (memory-writer, audit-reader, integrity-checker) + Standard Tool Interface types |
 | `cre-memoryvault/tools/uniswap-v3-lp/` | MVP tool: scanner (cron) + monitor (cron) |
-| `agent/` | Agent service + skills (risk-analysis, trader-template, ace-client, cre-trigger, memory-client) |
+| `agent/` | Agent service + skills (risk-analysis, trader-template, zama-confidential-client, cre-trigger, memory-client) |
 | `agent/templates/` | Pre-built trader strategy templates (JSON) |
 | `contracts/` | `MemoryRegistry.sol` deployed to Sepolia |
 | `server/` | Mock data API + Uniswap subgraph metrics adapter |
@@ -136,10 +136,23 @@ AWS_SECRET_ACCESS_KEY_VAR=...
 # ── AES Encryption Key (for MemoryVault blobs) ──────────────────
 AES_KEY_VAR=...            # 32-byte hex key, e.g. from: openssl rand -hex 32
 
-# ── ACE (optional — private transfers stubbed in MVP) ───────────
-ACE_API_URL=https://convergence2026-token-api.cldev.cloud
-TOKEN_ADDRESS=0x...
-LP_POSITION_SHIELDED_ADDRESS=0x...
+# ── Zama Confidential Transfer ───────────────────────────────────
+ZAMA_TRANSFER_MODE=simulate   # or onchain
+ZAMA_RPC_URL=https://...
+ZAMA_CHAIN_ID=11155111
+ZAMA_CONFIDENTIAL_TOKEN_ADDRESS=0x...
+ZAMA_PRIVATE_KEY=0x...        # optional, falls back to CRE_ETH_PRIVATE_KEY
+
+# Required for onchain mode:
+# map plaintext amount -> encrypted payload
+ZAMA_ENCRYPTED_INPUTS_JSON={\"1000000000\":{\"handle\":\"0x...\",\"inputProof\":\"0x...\"}}
+
+# Optional default payload if amount key is missing
+ZAMA_DEFAULT_HANDLE=0x...
+ZAMA_DEFAULT_INPUT_PROOF=0x...
+
+LP_POSITION_CONFIDENTIAL_ADDRESS=0x...
+HOLD_WALLET_CONFIDENTIAL_ADDRESS=0x...
 ```
 
 `cre-memoryvault/.env` must contain the same secrets — the CRE CLI reads it when running workflow simulations. The easiest approach:
@@ -186,7 +199,7 @@ CRETrigger                     Risk Analysis Skill        Decision Skill
     │  cre workflow simulate protocol/memory-writer ───────────┘
     │  → XOR-encrypt → S3 PUT → keccak256 → MemoryRegistry.sol
     │
-    │  ACE private transfer (STUB — logs only)
+    │  Zama confidential transfer (simulate or onchain mode)
     │
     │  MemoryClient (confirm after acting)
     │  cre workflow simulate protocol/memory-writer
@@ -463,12 +476,12 @@ mapping(string => bytes32[])   public agentHashes;
 
 | Who | What they can see |
 |---|---|
-| On-chain observers | MemoryRegistry hash commitments only (no content). ACE transfers are invisible. |
+| On-chain observers | MemoryRegistry hash commitments only (no content). Confidential transfer amounts are ciphertext handles/proofs. |
 | AWS S3 / storage | Encrypted blobs only (XOR cipher with AES key in CRE secrets vault) |
 | CRE DON nodes | Encrypted workflow I/O (inside enclave). API keys never leave the vault. |
 | Fund owner / auditor | Full decrypted decision log via `audit-reader` (with AES key) |
 
-> **Note:** ACE private transfers (which hide LP entry/exit from on-chain observers) are **stubbed** in this MVP (`ace-client.ts` logs intent). The reasoning commitment and audit trail are fully functional.
+> **Note:** Private transfer execution now routes through `zama-confidential-client.ts`. Use `ZAMA_TRANSFER_MODE=simulate` for local runs without on-chain confidential transfer prerequisites.
 
 ---
 

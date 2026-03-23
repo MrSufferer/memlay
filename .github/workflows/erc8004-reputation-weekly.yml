@@ -1,0 +1,42 @@
+name: ERC-8004 Reputation Weekly
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  publish-reputation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build registration artifacts
+        env:
+          ERC8004_BASE_URL: ${{ secrets.ERC8004_BASE_URL }}
+          ERC8004_IDENTITY_REGISTRY: ${{ secrets.ERC8004_IDENTITY_REGISTRY }}
+          ERC8004_AGENT_ID: ${{ secrets.ERC8004_AGENT_ID }}
+          ERC8004_CHAIN_ID: 11155111
+        run: bun run agent/erc8004/build-registration.ts
+
+      - name: Run weekly publisher
+        env:
+          RPC_URL: ${{ secrets.RPC_URL }}
+          ERC8004_CHAIN_ID: 11155111
+          ERC8004_BASE_URL: ${{ secrets.ERC8004_BASE_URL }}
+          ERC8004_IDENTITY_REGISTRY: ${{ secrets.ERC8004_IDENTITY_REGISTRY }}
+          ERC8004_REPUTATION_REGISTRY: ${{ secrets.ERC8004_REPUTATION_REGISTRY }}
+          ERC8004_AGENT_ID: ${{ secrets.ERC8004_AGENT_ID }}
+          ERC8004_WATCHTOWER_PRIVATE_KEY: ${{ secrets.ERC8004_WATCHTOWER_PRIVATE_KEY }}
+        run: bun run agent/erc8004/run-weekly-publisher.ts

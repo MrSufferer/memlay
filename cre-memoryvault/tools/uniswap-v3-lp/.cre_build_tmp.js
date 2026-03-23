@@ -5645,6 +5645,11 @@ var LATEST_BLOCK_NUMBER = {
   absVal: Buffer.from([2]).toString("base64"),
   sign: "-1"
 };
+var decodeJson = (input) => {
+  const decoder = new TextDecoder("utf-8");
+  const textBody = decoder.decode(input);
+  return JSON.parse(textBody);
+};
 function sendReport(runtime, report, fn) {
   const rawReport = report.x_generatedCodeOnly_unwrap();
   const request = fn(rawReport);
@@ -14175,12 +14180,31 @@ var sendErrorResponse = (error) => {
 var configSchema = exports_external.object({
   schedule: exports_external.string(),
   apiUrl: exports_external.string(),
-  activePositionPoolIds: exports_external.array(exports_external.string()).default([])
+  activePositionPoolIds: exports_external.array(exports_external.string()).default([]),
+  publicKey: exports_external.string()
 });
-var onCronTrigger = (runtime2) => {
+function parseHttpOverrides(payload) {
+  if (!payload.input || payload.input.length === 0) {
+    return {};
+  }
+  const parsed = decodeJson(payload.input);
+  const params = parsed.params ?? parsed;
+  const out = {};
+  if (typeof params.apiUrl === "string" && params.apiUrl.length > 0) {
+    out.apiUrl = params.apiUrl;
+  }
+  if (Array.isArray(params.activePositionPoolIds)) {
+    const ids = params.activePositionPoolIds.filter((v) => typeof v === "string" && v.length > 0);
+    out.activePositionPoolIds = ids;
+  }
+  return out;
+}
+function executeMonitor(runtime2, overrides = {}) {
   const config = runtime2.config;
   runtime2.log("Uniswap V3 LP Monitor tick");
-  if (!config.activePositionPoolIds.length) {
+  const apiUrl = overrides.apiUrl ?? config.apiUrl;
+  const activePositionPoolIds = overrides.activePositionPoolIds ?? config.activePositionPoolIds;
+  if (!activePositionPoolIds.length) {
     runtime2.log("No active positions configured; returning no_action");
     return {
       status: "no_action",
@@ -14194,7 +14218,7 @@ var onCronTrigger = (runtime2) => {
   }
   const httpClient = new cre.capabilities.HTTPClient;
   const resp = httpClient.sendRequest(runtime2, {
-    url: `${config.apiUrl}/pools/clmm`,
+    url: `${apiUrl}/pools/clmm`,
     method: "GET"
   }).result();
   const poolsResp = JSON.parse(new TextDecoder().decode(resp.body));
@@ -14204,7 +14228,7 @@ var onCronTrigger = (runtime2) => {
   }
   const exitSignals = [];
   let checked2 = 0;
-  for (const poolId of config.activePositionPoolIds) {
+  for (const poolId of activePositionPoolIds) {
     const pool = poolById.get(poolId);
     if (!pool)
       continue;
@@ -14266,12 +14290,29 @@ var onCronTrigger = (runtime2) => {
   };
   runtime2.log(`Monitor completed. Checked ${checked2} positions, ` + `fired ${exitSignals.length} exit signals.`);
   return response;
+}
+var onCronTrigger = (runtime2) => {
+  return executeMonitor(runtime2);
+};
+var onHttpTrigger = (runtime2, payload) => {
+  const overrides = parseHttpOverrides(payload);
+  const response = executeMonitor(runtime2, overrides);
+  return JSON.stringify(response);
 };
 var initWorkflow = (config) => {
+  const http = new cre.capabilities.HTTPCapability;
   return [
     handler(new CronCapability().trigger({
       schedule: config.schedule
-    }), onCronTrigger)
+    }), onCronTrigger),
+    handler(http.trigger({
+      authorizedKeys: [
+        {
+          type: "KEY_TYPE_ECDSA_EVM",
+          publicKey: config.publicKey
+        }
+      ]
+    }), onHttpTrigger)
   ];
 };
 async function main() {

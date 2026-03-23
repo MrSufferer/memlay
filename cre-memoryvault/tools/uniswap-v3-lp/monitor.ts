@@ -4,7 +4,8 @@ import {
     handler,
     type Runtime,
     Runner,
-    ok,
+    decodeJson,
+    type HTTPPayload,
 } from '@chainlink/cre-sdk'
 import { z } from 'zod'
 import type { ToolResponse, ExitSignal } from '../../protocol/tool-interface'
@@ -13,10 +14,8 @@ import type { ToolResponse, ExitSignal } from '../../protocol/tool-interface'
  * Uniswap V3 LP Tool — Monitor workflow
  *
  * Implements the `monitor` action of the Standard Tool Interface as a
- * CRE cron workflow using only public data (HTTPClient). It inspects a
- * configured set of active LP positions and evaluates the 6 exit
- * triggers defined in the requirements. Any fired triggers are returned
- * as ExitSignal[] for the agent to act on.
+ * CRE workflow using public data (HTTPClient). Supports both cron and
+ * HTTP triggers so deployed environments can invoke on-demand checks.
  */
 
 const configSchema = z.object({
@@ -26,54 +25,75 @@ const configSchema = z.object({
     apiUrl: z.string(),
     /** List of active Uniswap V3 pool IDs this monitor should track */
     activePositionPoolIds: z.array(z.string()).default([]),
+    /** Authorized ECDSA key used by deployed HTTP trigger */
+    publicKey: z.string(),
 })
 
 type MonitorConfig = z.infer<typeof configSchema>
+
+interface MonitorOverrides {
+    apiUrl?: string
+    activePositionPoolIds?: string[]
+}
 
 interface PoolSnapshot {
     id: string
     feeAPY: number
     tvl: number
-    /**
-     * Optional approximate metrics exposed by the public data API.
-     * These allow us to approximate some of the 6 documented exit
-     * triggers without requiring premium APIs:
-     *
-     * - tvlChange4h: % change in TVL over the last 4h (e.g., -25 for -25%)
-     * - feeMultipleSinceEntry: multiple of fees earned vs. some baseline
-     */
     tvlChange4h?: number
     feeMultipleSinceEntry?: number
-    // Additional fields can be added as needed (e.g., holder data, unlock info)
 }
 
 interface PoolsResponse {
     pools: PoolSnapshot[]
 }
 
-const onCronTrigger = (runtime: Runtime<MonitorConfig>): ToolResponse => {
+function parseHttpOverrides(payload: HTTPPayload): MonitorOverrides {
+    if (!payload.input || payload.input.length === 0) {
+        return {}
+    }
+
+    const parsed = decodeJson(payload.input) as Record<string, unknown>
+    const params = (parsed.params ?? parsed) as Record<string, unknown>
+
+    const out: MonitorOverrides = {}
+    if (typeof params.apiUrl === 'string' && params.apiUrl.length > 0) {
+        out.apiUrl = params.apiUrl
+    }
+
+    if (Array.isArray(params.activePositionPoolIds)) {
+        const ids = params.activePositionPoolIds.filter((v): v is string => typeof v === 'string' && v.length > 0)
+        out.activePositionPoolIds = ids
+    }
+
+    return out
+}
+
+function executeMonitor(runtime: Runtime<MonitorConfig>, overrides: MonitorOverrides = {}): ToolResponse {
     const config = runtime.config
     runtime.log('Uniswap V3 LP Monitor tick')
 
-    if (!config.activePositionPoolIds.length) {
+    const apiUrl = overrides.apiUrl ?? config.apiUrl
+    const activePositionPoolIds = overrides.activePositionPoolIds ?? config.activePositionPoolIds
+
+    if (!activePositionPoolIds.length) {
         runtime.log('No active positions configured; returning no_action')
         return {
             status: 'no_action',
             action: 'monitor',
             toolId: 'uniswap-v3-lp',
             data: {
-                positionsChecked: 0
+                positionsChecked: 0,
             },
-            exitSignals: []
+            exitSignals: [],
         }
     }
 
     const httpClient = new cre.capabilities.HTTPClient()
 
-    // Fetch current pool data for all CLMM pools from the public API
     const resp = httpClient
         .sendRequest(runtime, {
-            url: `${config.apiUrl}/pools/clmm`,
+            url: `${apiUrl}/pools/clmm`,
             method: 'GET',
         })
         .result()
@@ -87,12 +107,12 @@ const onCronTrigger = (runtime: Runtime<MonitorConfig>): ToolResponse => {
     const exitSignals: ExitSignal[] = []
     let checked = 0
 
-    for (const poolId of config.activePositionPoolIds) {
+    for (const poolId of activePositionPoolIds) {
         const pool = poolById.get(poolId)
         if (!pool) continue
         checked++
 
-        // --- Exit trigger 1: APY drop below 50% (medium urgency) ---
+        // Exit trigger 1: APY drop below 50%
         if (pool.feeAPY < 50) {
             exitSignals.push({
                 trigger: 'apy_drop',
@@ -105,11 +125,7 @@ const onCronTrigger = (runtime: Runtime<MonitorConfig>): ToolResponse => {
             })
         }
 
-        // --- Exit trigger 2 (approx): TVL crash (>20% drop in 4h) ---
-        //
-        // If the mock/public API exposes `tvlChange4h`, we treat a drop
-        // below -20% as a critical TVL crash. If the field is missing,
-        // this trigger is effectively disabled but still logged as such.
+        // Exit trigger 2 (approx): TVL crash (>20% drop in 4h)
         if (typeof pool.tvlChange4h === 'number') {
             if (pool.tvlChange4h < -20) {
                 exitSignals.push({
@@ -130,11 +146,7 @@ const onCronTrigger = (runtime: Runtime<MonitorConfig>): ToolResponse => {
             )
         }
 
-        // --- Exit trigger 3 (approx): Profit target (2x fees) ---
-        //
-        // With only aggregate fee data, we approximate the "2x on fee
-        // accumulation" requirement using a `feeMultipleSinceEntry`
-        // metric if provided by the API or simulator.
+        // Exit trigger 3 (approx): Profit target (2x fees)
         if (typeof pool.feeMultipleSinceEntry === 'number') {
             if (pool.feeMultipleSinceEntry >= 2.0) {
                 exitSignals.push({
@@ -154,16 +166,6 @@ const onCronTrigger = (runtime: Runtime<MonitorConfig>): ToolResponse => {
                 'feeMultipleSinceEntry not provided by API.'
             )
         }
-
-        // NOTE: The remaining triggers from the requirements —
-        // - whale_accumulation
-        // - liquidity_unlock
-        // - suspicious_contract
-        //
-        // are not currently derivable from the public pool snapshot
-        // alone. They remain TODOs for when richer metrics (holder
-        // distribution, lock events, contract call telemetry) are
-        // exposed by the scanner/monitor backend.
     }
 
     const status: ToolResponse['status'] = exitSignals.length > 0 ? 'success' : 'no_action'
@@ -187,14 +189,41 @@ const onCronTrigger = (runtime: Runtime<MonitorConfig>): ToolResponse => {
     return response
 }
 
+const onCronTrigger = (runtime: Runtime<MonitorConfig>): ToolResponse => {
+    return executeMonitor(runtime)
+}
+
+const onHttpTrigger = (
+    runtime: Runtime<MonitorConfig>,
+    payload: HTTPPayload
+): string => {
+    const overrides = parseHttpOverrides(payload)
+    const response = executeMonitor(runtime, overrides)
+    return JSON.stringify(response)
+}
+
 const initWorkflow = (config: MonitorConfig) => {
+    const http = new cre.capabilities.HTTPCapability()
+
     return [
+        // Keep cron trigger first so existing --trigger-index 0 monitor commands remain valid.
         handler(
             new CronCapability().trigger({
-                schedule: config.schedule
+                schedule: config.schedule,
             }),
             onCronTrigger
-        )
+        ),
+        handler(
+            http.trigger({
+                authorizedKeys: [
+                    {
+                        type: 'KEY_TYPE_ECDSA_EVM',
+                        publicKey: config.publicKey,
+                    },
+                ],
+            }),
+            onHttpTrigger
+        ),
     ]
 }
 
@@ -203,3 +232,4 @@ export async function main() {
     await runner.run(initWorkflow)
 }
 
+main()

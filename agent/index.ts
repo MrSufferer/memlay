@@ -4,27 +4,36 @@
  * Main loop:
  *  1. Load trader template
  *  2. For each tool in template.strategy.tools:
- *     - Fetch latest scan results via CRETrigger
+ *     - Fetch latest scan results via the target backend
  *     - Run Risk Analysis Skill: RawOpportunity -> ScoredOpportunity
  *     - Filter by thresholds
- *     - (Stub) Execute entries via ACEClient using LP sizing helper
+ *     - Execute entries via the active execution backend using LP sizing helper
  *
  * This file wires together higher-level orchestration but leaves
- * concrete ACE + CRE wiring as stubs to be filled in after T2.5.
+ * target-specific wiring behind chain-agnostic runtime interfaces.
  */
 
 import { loadTemplate, type TraderTemplate } from './trader-template'
-import { CRETrigger } from './cre-trigger'
-import { ACEClient } from './ace-client'
 import { calculatePositionAmount } from './lp-simulator'
 import { scoreOpportunity, type RiskAnalysisDeps } from './skills/risk-analysis'
-import { MemoryClient } from './memory-client'
 import { cryptoNewsAlphaFetcher } from './alpha-fetcher'
+import { loadDeploymentTargetConfig } from './deploy-runtime-config'
 import type {
-    RawOpportunity,
+    AgentBackend,
+    AgentExecutionRuntime,
+    AgentMemoryRuntime,
+    AgentToolRuntime,
+} from './core/backend'
+import { createAgentBackend } from './core/backend-factory'
+import {
+    buildBonzoEnterRequest,
+    buildBonzoExitRequest,
+} from './tools/bonzo-vaults/execution'
+import type {
     ScoredOpportunity,
-    ToolResponse,
     ExitSignal,
+    ToolRequest,
+    ToolResponse,
 } from '../cre-memoryvault/protocol/tool-interface'
 
 // ── Real RiskAnalysisDeps ────────────────────────────────────────────────────
@@ -116,31 +125,40 @@ const riskDeps: RiskAnalysisDeps = {
     },
 }
 
-async function runOnce(agentId: string) {
-    const template = loadTemplate(agentId)
-
-    const creTrigger = new CRETrigger({
-        baseUrl: process.env.CRE_GATEWAY_URL || 'http://localhost:8080',
-    })
-    const ace = new ACEClient({
-        apiUrl: process.env.ACE_API_URL || 'https://example-ace',
-    })
-    const memory = new MemoryClient()
+export async function runOnce(
+    agentId: string,
+    backend: AgentBackend,
+    options: {
+        template?: TraderTemplate
+        riskDeps?: RiskAnalysisDeps
+    } = {}
+) {
+    const template = options.template ?? loadTemplate(agentId)
+    const deps = options.riskDeps ?? riskDeps
 
     for (const toolId of template.strategy.tools) {
-        const scanResults = await creTrigger.getScanResults(toolId)
-        if (!scanResults || !scanResults.opportunities?.length) continue
-
-        const scored = await scoreAll(riskDeps, scanResults, template)
-        const qualified = filterByThresholds(scored, template)
-
-        for (const opp of qualified) {
-            await executeLpEntry(agentId, memory, ace, template, opp)
+        const exitExecuted = await handleMonitorSignals(
+            agentId,
+            backend.memory,
+            backend.execution,
+            template,
+            toolId,
+            backend.tools
+        )
+        if (exitExecuted) {
+            continue
         }
 
-        // After evaluating new entries, inspect monitor results for this tool
-        // and act on any exit signals the template is configured to honor.
-        await handleMonitorSignals(agentId, memory, ace, template, toolId, creTrigger)
+        const scanResults = await backend.tools.scan(toolId)
+
+        if (scanResults?.opportunities?.length) {
+            const scored = await scoreAll(deps, scanResults, template)
+            const qualified = filterByThresholds(scored, template)
+
+            for (const opp of qualified) {
+                await executeLpEntry(agentId, backend.memory, backend.execution, template, opp)
+            }
+        }
     }
 }
 
@@ -200,37 +218,95 @@ function filterExitSignals(
     return signals.filter(signal => allowed.has(signal.trigger))
 }
 
+function buildEnterToolRequest(args: {
+    agentId: string
+    template: TraderTemplate
+    opportunity: ScoredOpportunity
+    amount: bigint
+}): ToolRequest {
+    if (args.opportunity.toolId === 'bonzo-vaults') {
+        return buildBonzoEnterRequest({
+            agentId: args.agentId,
+            strategyType: args.template.strategy.type,
+            opportunity: args.opportunity,
+            amount: args.amount,
+            allocationPctBps: Math.round(args.template.risk.maxPositionPct * 10000),
+        })
+    }
+
+    return {
+        action: 'enter',
+        agentId: args.agentId,
+        strategyType: args.template.strategy.type,
+        params: {
+            assetId: args.opportunity.assetId,
+            amountAtomic: args.amount.toString(),
+            entryParams: args.opportunity.entryParams,
+        },
+    }
+}
+
+function buildExitToolRequest(args: {
+    agentId: string
+    template: TraderTemplate
+    toolId: string
+    signal: ExitSignal
+    amount: bigint
+}): ToolRequest {
+    if (args.toolId === 'bonzo-vaults') {
+        return buildBonzoExitRequest({
+            agentId: args.agentId,
+            strategyType: args.template.strategy.type,
+            signal: args.signal,
+        })
+    }
+
+    return {
+        action: 'exit',
+        agentId: args.agentId,
+        strategyType: args.template.strategy.type,
+        params: {
+            amountAtomic: args.amount.toString(),
+            trigger: args.signal.trigger,
+            urgency: args.signal.urgency,
+            data: args.signal.data,
+        },
+    }
+}
+
 async function handleMonitorSignals(
     agentId: string,
-    memory: MemoryClient,
-    ace: ACEClient,
+    memory: AgentMemoryRuntime,
+    execution: AgentExecutionRuntime,
     template: TraderTemplate,
     toolId: string,
-    creTrigger: CRETrigger
-): Promise<void> {
-    const monitorResults = await creTrigger.getMonitorResults(toolId)
+    tools: AgentToolRuntime
+): Promise<boolean> {
+    const monitorResults = await tools.monitor(toolId)
     if (!monitorResults || !monitorResults.exitSignals?.length) {
-        return
+        return false
     }
 
     const actionable = filterExitSignals(monitorResults.exitSignals, template)
     if (!actionable.length) {
-        return
+        return false
     }
 
     for (const signal of actionable) {
-        await executeLpExit(agentId, memory, ace, template, toolId, signal)
+        await executeLpExit(agentId, memory, execution, template, toolId, signal)
     }
+
+    return true
 }
 
-async function executeLpEntry(
+export async function executeLpEntry(
     agentId: string,
-    memory: MemoryClient,
-    ace: ACEClient,
+    memory: AgentMemoryRuntime,
+    execution: AgentExecutionRuntime,
     template: TraderTemplate,
     opportunity: ScoredOpportunity
 ): Promise<void> {
-    // In a real implementation we’d read wallet balance from ACE or chain.
+    // In a real implementation we’d read wallet balance from chain state.
     const fakeBalance = 1_000_000_000n // stubbed
     const amount = calculatePositionAmount(template, fakeBalance)
     if (amount <= 0n) {
@@ -238,7 +314,7 @@ async function executeLpEntry(
         return
     }
 
-    console.log('[Agent] Executing LP entry (stub):', {
+    console.log('[Agent] Executing LP entry:', {
         toolId: opportunity.toolId,
         assetId: opportunity.assetId,
         amount: amount.toString(),
@@ -260,11 +336,30 @@ async function executeLpEntry(
         } as any,
     })
 
-    await ace.privateTransfer({
-        recipient: process.env.LP_POSITION_SHIELDED_ADDRESS || '0xLP_SHIELDED',
-        token: process.env.TOKEN_ADDRESS || '0xTOKEN',
-        amount,
-    })
+    try {
+        await execution.enterPosition({
+            toolId: opportunity.toolId,
+            request: buildEnterToolRequest({
+                agentId,
+                template,
+                opportunity,
+                amount,
+            }),
+        })
+    } catch (error) {
+        const failureKey = `lp-entry-failed-${new Date().toISOString()}`
+        await memory.commitEntry({
+            agentId,
+            entryKey: failureKey,
+            entryData: {
+                action: 'lp-entry-failed',
+                toolId: opportunity.toolId,
+                assetId: opportunity.assetId,
+                error: error instanceof Error ? error.message : String(error),
+            } as any,
+        })
+        throw error
+    }
 
     // Confirm entry AFTER execution
     const confirmKey = `lp-entry-confirmed-${new Date().toISOString()}`
@@ -279,19 +374,19 @@ async function executeLpEntry(
     })
 }
 
-async function executeLpExit(
+export async function executeLpExit(
     agentId: string,
-    memory: MemoryClient,
-    ace: ACEClient,
+    memory: AgentMemoryRuntime,
+    execution: AgentExecutionRuntime,
     template: TraderTemplate,
     toolId: string,
     signal: ExitSignal
 ): Promise<void> {
     // For the MVP we use a stubbed position size. In a full implementation,
-    // this would be derived from on-chain or ACE position state.
+    // this would be derived from on-chain position state.
     const fakePositionSize = 500_000_000n
 
-    console.log('[Agent] Executing LP exit (stub):', {
+    console.log('[Agent] Executing LP exit:', {
         toolId,
         trigger: signal.trigger,
         urgency: signal.urgency,
@@ -312,11 +407,32 @@ async function executeLpExit(
         } as any,
     })
 
-    await ace.privateTransfer({
-        recipient: process.env.HOLD_WALLET_SHIELDED_ADDRESS || '0xHOLD_SHIELDED',
-        token: process.env.TOKEN_ADDRESS || '0xTOKEN',
-        amount: fakePositionSize,
-    })
+    try {
+        await execution.exitPosition({
+            toolId,
+            request: buildExitToolRequest({
+                agentId,
+                template,
+                toolId,
+                signal,
+                amount: fakePositionSize,
+            }),
+        })
+    } catch (error) {
+        const failureKey = `lp-exit-failed-${new Date().toISOString()}`
+        await memory.commitEntry({
+            agentId,
+            entryKey: failureKey,
+            entryData: {
+                action: 'lp-exit-failed',
+                toolId,
+                trigger: signal.trigger,
+                urgency: signal.urgency,
+                error: error instanceof Error ? error.message : String(error),
+            } as any,
+        })
+        throw error
+    }
 
     // Confirm exit AFTER execution
     const confirmKey = `lp-exit-confirmed-${new Date().toISOString()}`
@@ -332,13 +448,18 @@ async function executeLpExit(
     })
 }
 
-async function main() {
-    const agentId = process.env.AGENT_ID || 'agent-alpha-01'
-    await runOnce(agentId)
+export async function main() {
+    const defaultAgentId = loadDeploymentTargetConfig().id === 'hedera'
+        ? 'agent-hedera-01'
+        : 'agent-alpha-01'
+    const agentId = process.env.AGENT_ID || defaultAgentId
+    const backend = createAgentBackend()
+    await runOnce(agentId, backend)
 }
 
-main().catch(err => {
-    console.error('[Agent] Fatal error:', err)
-    process.exit(1)
-})
-
+if (import.meta.main) {
+    main().catch(err => {
+        console.error('[Agent] Fatal error:', err)
+        process.exit(1)
+    })
+}

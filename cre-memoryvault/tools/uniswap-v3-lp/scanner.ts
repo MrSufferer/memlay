@@ -5,6 +5,8 @@ import {
     ok,
     type Runtime,
     Runner,
+    decodeJson,
+    type HTTPPayload,
 } from '@chainlink/cre-sdk'
 import { z } from 'zod'
 import type { ToolResponse, RawOpportunity } from '../../protocol/tool-interface'
@@ -14,10 +16,18 @@ const configSchema = z.object({
     /** Full The Graph subgraph URL (no API key in path) */
     uniswapSubgraphUrl: z.string(),
     minTVL: z.number().default(500000),
-    maxAgeDays: z.number().default(7)
+    maxAgeDays: z.number().default(7),
+    /** Authorized ECDSA key used by deployed HTTP trigger */
+    publicKey: z.string(),
 })
 
 type ScannerConfig = z.infer<typeof configSchema>
+
+interface ScannerOverrides {
+    minTVL?: number
+    maxAgeDays?: number
+    uniswapSubgraphUrl?: string
+}
 
 /**
  * Encode a UTF-8 string into base64 (WASM-safe, no btoa).
@@ -41,22 +51,42 @@ function stringToBase64(value: string): string {
     return result
 }
 
-export const onCronTrigger = (runtime: Runtime<ScannerConfig>): ToolResponse => {
+function parseHttpOverrides(payload: HTTPPayload): ScannerOverrides {
+    if (!payload.input || payload.input.length === 0) {
+        return {}
+    }
+
+    const parsed = decodeJson(payload.input) as Record<string, unknown>
+    const params = (parsed.params ?? parsed) as Record<string, unknown>
+
+    const out: ScannerOverrides = {}
+    if (typeof params.minTVL === 'number' && Number.isFinite(params.minTVL)) {
+        out.minTVL = params.minTVL
+    }
+    if (typeof params.maxAgeDays === 'number' && Number.isFinite(params.maxAgeDays)) {
+        out.maxAgeDays = params.maxAgeDays
+    }
+    if (typeof params.uniswapSubgraphUrl === 'string' && params.uniswapSubgraphUrl.length > 0) {
+        out.uniswapSubgraphUrl = params.uniswapSubgraphUrl
+    }
+
+    return out
+}
+
+function executeScan(runtime: Runtime<ScannerConfig>, overrides: ScannerOverrides = {}): ToolResponse {
     runtime.log('Starting Uniswap V3 LP Scanner tool')
 
     // ── Fetch API key secret (sequential getSecret — CRE requirement) ─────────
-    // We reuse the existing `dataApiKey` secret: for The Graph, it is sent as a
-    // Bearer token instead of x-api-key header.
     const dataApiKey = runtime.getSecret({ id: 'dataApiKey' }).result()
 
     const httpClient = new cre.capabilities.HTTPClient()
     const config = runtime.config
 
+    const minTVL = overrides.minTVL ?? config.minTVL
+    const maxAgeDays = overrides.maxAgeDays ?? config.maxAgeDays
+    const uniswapSubgraphUrl = overrides.uniswapSubgraphUrl ?? config.uniswapSubgraphUrl
+
     // ── Fetch public CLMM pool data from Uniswap V3 subgraph via The Graph ────
-    //
-    // NOTE: The full gateway URL (including API key and subgraph ID) is provided
-    //       via the `uniswapSubgraphUrl` config field. This is public pool data
-    //       only — no trader secrets or Confidential HTTP.
     const query = `
       {
         pools(first: 50, orderBy: totalValueLockedUSD, orderDirection: desc) {
@@ -74,7 +104,7 @@ export const onCronTrigger = (runtime: Runtime<ScannerConfig>): ToolResponse => 
 
     const resp = httpClient
         .sendRequest(runtime, {
-            url: config.uniswapSubgraphUrl,
+            url: uniswapSubgraphUrl,
             method: 'POST',
             headers: {
                 Authorization: `Bearer ${dataApiKey.value}`,
@@ -100,19 +130,18 @@ export const onCronTrigger = (runtime: Runtime<ScannerConfig>): ToolResponse => 
     // consensus-safe timestamps (no Date.now()).
     const nowDate = new Date(String(runtime.now()))
     const nowSecs = Math.floor(nowDate.getTime() / 1000)
-    const maxAgeSecs = config.maxAgeDays * 24 * 60 * 60
+    const maxAgeSecs = maxAgeDays * 24 * 60 * 60
 
     const pools = allPools.filter((p: any) => {
         const tvl = Number(p.totalValueLockedUSD ?? 0)
         const createdAt = Number(p.createdAtTimestamp ?? 0)
         const ageSecs = nowSecs - createdAt
-        const tvlOk = tvl >= config.minTVL
+        const tvlOk = tvl >= minTVL
         const ageOk = ageSecs >= 0 && ageSecs <= maxAgeSecs
         return tvlOk && ageOk
     })
 
     // Build RawOpportunity[] from public pool data only.
-    // Trust/alpha scoring is handled by the Risk Analysis Skill.
     const opportunities: RawOpportunity[] = []
 
     for (const pool of pools) {
@@ -120,8 +149,8 @@ export const onCronTrigger = (runtime: Runtime<ScannerConfig>): ToolResponse => 
             toolId: 'uniswap-v3-lp',
             assetId: pool.id,
             entryParams: {
-                pool
-            }
+                pool,
+            },
         })
     }
 
@@ -130,23 +159,52 @@ export const onCronTrigger = (runtime: Runtime<ScannerConfig>): ToolResponse => 
         action: 'scan',
         toolId: 'uniswap-v3-lp',
         data: {
-            fetchedCount: opportunities.length
+            fetchedCount: opportunities.length,
+            minTVL,
+            maxAgeDays,
         },
-        opportunities
+        opportunities,
     }
 
     runtime.log(`Scanner completed successfully. Found ${result.opportunities?.length || 0} opportunities.`)
     return result
 }
 
+export const onCronTrigger = (runtime: Runtime<ScannerConfig>): ToolResponse => {
+    return executeScan(runtime)
+}
+
+export const onHttpTrigger = (
+    runtime: Runtime<ScannerConfig>,
+    payload: HTTPPayload
+): string => {
+    const overrides = parseHttpOverrides(payload)
+    const result = executeScan(runtime, overrides)
+    return JSON.stringify(result)
+}
+
 const initWorkflow = (config: ScannerConfig) => {
+    const http = new cre.capabilities.HTTPCapability()
+
     return [
+        // Keep cron trigger first so existing simulate commands using --trigger-index 0 remain valid.
         handler(
             new CronCapability().trigger({
-                schedule: config.schedule
+                schedule: config.schedule,
             }),
             onCronTrigger
-        )
+        ),
+        handler(
+            http.trigger({
+                authorizedKeys: [
+                    {
+                        type: 'KEY_TYPE_ECDSA_EVM',
+                        publicKey: config.publicKey,
+                    },
+                ],
+            }),
+            onHttpTrigger
+        ),
     ]
 }
 
@@ -154,3 +212,4 @@ export async function main() {
     const runner = await Runner.newRunner<ScannerConfig>({ configSchema })
     await runner.run(initWorkflow)
 }
+main()

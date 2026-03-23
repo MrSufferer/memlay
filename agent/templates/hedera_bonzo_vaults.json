@@ -1,0 +1,41 @@
+{
+  "agentId": "agent-hedera-01",
+  "name": "Hedera Bonzo Vault Rotator",
+  "version": "1.0.0",
+  "strategy": {
+    "type": "custom",
+    "tools": [
+      "bonzo-vaults"
+    ],
+    "entryThresholds": {
+      "minOpportunityScore": 78,
+      "minTrustScore": 72,
+      "maxRiskLevel": "MEDIUM"
+    },
+    "exitTriggers": [
+      "better_vault_available",
+      "apy_drop",
+      "reward_change",
+      "vault_health"
+    ]
+  },
+  "risk": {
+    "maxPositionPct": 0.12,
+    "stopLossEnabled": true,
+    "stopLossDropPct": 0.12,
+    "profitTarget": 1.35,
+    "maxConcurrentPositions": 1
+  },
+  "customInstructions": "Evaluate Hedera Bonzo vaults as managed yield strategies, not concentrated LP ranges. Prefer vaults with durable APY, healthy TVL, and stable reward-token incentives. Treat vault health degradation, stale snapshots, and sudden APY deterioration as strong reasons to avoid entry or rotate out. Rebalance only when the superior vault is materially better, not for tiny APY differences.",
+  "alpha": {
+    "sources": [
+      {
+        "id": "crypto-news51",
+        "description": "24h crypto news and sentiment via RapidAPI crypto-news51",
+        "secretEnvVar": "RAPIDAPI_KEY_VAR"
+      }
+    ]
+  },
+  "createdAt": "2026-03-23T00:00:00.000Z",
+  "updatedAt": "2026-03-23T00:00:00.000Z"
+}

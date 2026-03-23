@@ -8,7 +8,7 @@
  * KEY DESIGN PRINCIPLES:
  * 1. Tools return RawOpportunity[] (no scores) — scoring is the Skill's job
  * 2. scan/monitor are tool-owned (CRE cron workflows, no ToolRequest needed)
- * 3. enter/exit are agent-owned (agent constructs ToolRequest, executes via ACE)
+ * 3. enter/exit are agent-owned (agent constructs ToolRequest, executes via confidential transfer client)
  * 4. Tool-specific data lives in Record<string, unknown> fields (extensible)
  * 5. Adding a new tool requires 0 changes to agent skills or protocol workflows
  *
@@ -26,8 +26,8 @@
  * |-----------|----------|--------------------|----------------------|
  * | `scan`    | Cron     | Tool CRE workflow  | No — runs autonomously |
  * | `monitor` | Cron     | Tool CRE workflow  | No — runs autonomously |
- * | `enter`   | HTTP     | Agent via ACE      | Yes — agent constructs |
- * | `exit`    | HTTP     | Agent via ACE      | Yes — agent constructs |
+ * | `enter`   | HTTP     | Agent runtime      | Yes — agent constructs |
+ * | `exit`    | HTTP     | Agent runtime      | Yes — agent constructs |
  */
 export type ToolAction = 'scan' | 'enter' | 'exit' | 'monitor'
 

@@ -1,23 +1,27 @@
 /**
- * MemoryVault Agent Protocol — Owner Audit Script (T3.3)
+ * MemoryVault Agent Protocol — Owner Audit Script
  *
- * Reads the verified decision log for an agent from the audit-reader
- * CRE workflow and prints a human-readable summary grouped by toolId.
- *
- * Usage:
- *   AGENT_ID=agent-alpha-01 bun run agent/audit.ts
- *
- *   # or override agent via CLI arg
- *   bun run agent/audit.ts agent-beta-01
- *
- * If AUDIT_READER_URL is set, it posts to that HTTP gateway.
- * Otherwise, it defaults to subprocess simulation of the workflow
- * (mirroring the pattern in CRETrigger and MemoryClient).
+ * Reads the verified decision log from audit-reader workflow.
+ * Supports deploy-first mode with simulate fallback.
  */
 
 import { execFile } from 'child_process'
 import { fileURLToPath } from 'url'
 import { promisify } from 'util'
+import { DeployedTriggerClient } from './deployed-trigger-client'
+import {
+  hasDeployedTriggerConfig,
+  loadDeploymentTargetConfig,
+  loadTriggerAuthConfig,
+  resolveRuntimeMode,
+} from './deploy-runtime-config'
+import { loadHederaEnvConfig } from './hedera/env'
+import { loadHederaMemoryConfig } from './hedera/memory/runtime'
+import {
+  HederaMirrorNodeMemoryVerifier,
+  type HederaMemoryVerifier,
+} from './hedera/memory/verifier'
+import { loadWorkflowIdsFromEnv } from './workflow-ids'
 
 const execFileAsync = promisify(execFile)
 
@@ -44,8 +48,13 @@ interface AuditResponse {
 
 function parseCommittedAt(committedAt: string | undefined): string {
   if (!committedAt) return 'n/a'
+  const directDate = new Date(committedAt)
+  if (!Number.isNaN(directDate.getTime())) {
+    return directDate.toISOString()
+  }
+
   const n = Number(committedAt)
-  if (!Number.isFinite(n) || n <= 0) return 'n/a'
+  if (!Number.isFinite(n) || n <= 0) return committedAt
   try {
     return new Date(n * 1000).toISOString()
   } catch {
@@ -55,7 +64,6 @@ function parseCommittedAt(committedAt: string | undefined): string {
 
 function formatTimestamp(ts: string | undefined): string {
   if (!ts) return 'n/a'
-  // audit-reader stores ISO strings in entryData.timestamp
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return ts
   return d.toISOString()
@@ -105,94 +113,162 @@ function parseSimulationResult(stdout: string): AuditResponse | null {
   return null
 }
 
-async function run(): Promise<void> {
+function coerceAuditResponse(value: unknown): AuditResponse | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    try {
+      return coerceAuditResponse(JSON.parse(trimmed))
+    } catch {
+      return null
+    }
+  }
+
+  if (!value || typeof value !== 'object') return null
+
+  const maybe = value as Partial<AuditResponse>
+  if (typeof maybe.status !== 'string' || typeof maybe.agentId !== 'string') {
+    return null
+  }
+
+  return maybe as AuditResponse
+}
+
+export async function buildHederaAuditResponse(
+  agentId: string,
+  verifier?: HederaMemoryVerifier
+): Promise<AuditResponse> {
+  const env = loadHederaEnvConfig()
+  const memoryConfig = loadHederaMemoryConfig(env)
+  const activeVerifier =
+    verifier ??
+    new HederaMirrorNodeMemoryVerifier({
+      config: memoryConfig,
+      mirrorNodeUrl: env.mirrorNodeUrl,
+    })
+  const result = await activeVerifier.verify(agentId)
+  const decisionLog = result.entries.map((entry) => {
+    const data =
+      entry.data && typeof entry.data === 'object'
+        ? entry.data
+        : { error: entry.error ?? 'Unable to decode memory entry' }
+    const type = typeof data.action === 'string' ? data.action : 'unknown'
+    const toolId = typeof data.toolId === 'string' ? data.toolId : 'protocol'
+    const timestamp =
+      typeof data.timestamp === 'string' ? data.timestamp : entry.timestamp
+
+    return {
+      key: entry.entryKey,
+      type,
+      toolId,
+      timestamp,
+      verified: entry.valid,
+      committedAt: entry.committedAt,
+      data,
+    }
+  })
+
+  return {
+    status: 'success',
+    agentId,
+    decisionLog,
+    totalEntries: decisionLog.length,
+    verifiedCount: decisionLog.filter((entry) => entry.verified).length,
+    unverifiedCount: decisionLog.filter((entry) => !entry.verified).length,
+    onChainCommitments: `${decisionLog.length} HCS commitments on topic ${memoryConfig.topicId}`,
+  }
+}
+
+export async function runAudit(): Promise<void> {
   const cliAgentId = process.argv[2]
   const agentId = cliAgentId || process.env.AGENT_ID || 'agent-alpha-01'
-  const url = process.env.AUDIT_READER_URL
+  const mode = resolveRuntimeMode(process.env.CRE_RUNTIME_MODE)
+  const deploymentTarget = loadDeploymentTargetConfig()
 
   console.log('🔍 MemoryVault Owner Audit')
   console.log(`Agent: ${agentId}`)
 
-  let data: AuditResponse
+  let data: AuditResponse | null = null
 
-  if (url) {
-    console.log(`Endpoint: ${url}`)
+  if (!deploymentTarget.supportsLegacyCreStack) {
+    console.log('Endpoint: Hedera mirror node + S3 verifier')
     console.log('')
-
-    let res: Response
-    try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId }),
-      })
-    } catch (e) {
-      console.error('[audit] Failed to call audit-reader endpoint:', e)
-      process.exit(1)
-      return
-    }
-
-    if (!res.ok) {
-      console.error(
-        '[audit] Audit-reader HTTP error:',
-        res.status,
-        res.statusText
-      )
-      const text = await res.text().catch(() => '')
-      if (text) {
-        console.error('[audit] Response body:', text)
-      }
-      process.exit(1)
-    }
-
-    try {
-      data = (await res.json()) as AuditResponse
-    } catch (e) {
-      console.error('[audit] Failed to parse JSON response from audit-reader:', e)
-      process.exit(1)
-      return
-    }
-
+    data = await buildHederaAuditResponse(agentId)
   } else {
-    // ── Subprocess fallback ──
-    console.log('Endpoint: (None set, using subprocess simulation via CRE CLI)')
-    console.log('')
+    if (mode !== 'simulate') {
+      const auth = loadTriggerAuthConfig()
+      const workflowIds = loadWorkflowIdsFromEnv()
 
-    try {
-      const creProjectDir = fileURLToPath(new URL('../cre-memoryvault', import.meta.url))
-      const payload = JSON.stringify({ agentId })
+      if (hasDeployedTriggerConfig(auth) && workflowIds.auditReader) {
+        console.log('Endpoint: deployed gateway')
+        console.log('')
 
-      console.log(`[audit] Running cre workflow simulate protocol/audit-reader...`)
+        try {
+          const client = new DeployedTriggerClient({
+            gatewayUrl: auth.gatewayUrl!,
+            privateKey: auth.privateKey!,
+            timeoutMs: 120_000,
+          })
 
-      const result = await execFileAsync(
-        'cre',
-        [
-          'workflow', 'simulate', 'protocol/audit-reader',
-          '--target', 'staging-settings',
-          '--non-interactive',
-          '--trigger-index', '0',
-          '--http-payload', payload,
-        ],
-        {
-          cwd: creProjectDir,
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: 120_000
+          const raw = await client.triggerWorkflow({
+            workflowId: workflowIds.auditReader,
+            input: { agentId },
+          })
+
+          data = coerceAuditResponse(raw)
+          if (!data) {
+            throw new Error(`Could not parse deployed audit response: ${JSON.stringify(raw).slice(0, 300)}`)
+          }
+        } catch (error) {
+          console.error('[audit] Deployed audit-reader invocation failed:', error)
+          if (mode === 'deployed') {
+            process.exit(1)
+          }
         }
-      )
-
-      const parsed = parseSimulationResult(result.stdout)
-      if (!parsed) {
-        console.error('[audit] Could not parse CRE simulation output.')
-        console.error(result.stdout)
+      } else if (mode === 'deployed') {
+        console.error('[audit] deploy mode requires CRE gateway auth config and CRE_WORKFLOW_ID_AUDIT_READER')
         process.exit(1)
       }
-      data = parsed
+    }
 
-    } catch (err: any) {
-      console.error('[audit] Subprocess simulation failed:', err)
-      if (err.stdout) console.error('[audit] stdout:', err.stdout)
-      if (err.stderr) console.error('[audit] stderr:', err.stderr)
-      process.exit(1)
+    if (!data) {
+      console.log('Endpoint: (simulate fallback via CRE CLI)')
+      console.log('')
+
+      try {
+        const creProjectDir = fileURLToPath(new URL('../cre-memoryvault', import.meta.url))
+        const payload = JSON.stringify({ agentId })
+
+        console.log('[audit] Running cre workflow simulate protocol/audit-reader...')
+
+        const result = await execFileAsync(
+          'cre',
+          [
+            'workflow', 'simulate', 'protocol/audit-reader',
+            '--target', 'staging-settings',
+            '--non-interactive',
+            '--trigger-index', '0',
+            '--http-payload', payload,
+          ],
+          {
+            cwd: creProjectDir,
+            maxBuffer: 10 * 1024 * 1024,
+            timeout: 120_000,
+          }
+        )
+
+        data = parseSimulationResult(result.stdout)
+        if (!data) {
+          console.error('[audit] Could not parse CRE simulation output.')
+          console.error(result.stdout)
+          process.exit(1)
+        }
+      } catch (err: any) {
+        console.error('[audit] Subprocess simulation failed:', err)
+        if (err.stdout) console.error('[audit] stdout:', err.stdout)
+        if (err.stderr) console.error('[audit] stderr:', err.stderr)
+        process.exit(1)
+      }
     }
   }
 
@@ -203,7 +279,7 @@ async function run(): Promise<void> {
 
   const total = data.totalEntries ?? data.decisionLog?.length ?? 0
   const verified = data.verifiedCount ?? data.decisionLog.filter(e => e.verified).length
-  const unverified = data.unverifiedCount ?? (total - verified)
+  const unverified = data.unverifiedCount ?? total - verified
 
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log(`✅ Audit complete for agent: ${data.agentId}`)
@@ -232,19 +308,22 @@ async function run(): Promise<void> {
       const status = entry.verified ? 'VERIFIED' : 'UNVERIFIED'
       console.log(
         `- [${status}] ${entry.type || 'unknown'} ` +
-        `(ts=${ts}, committedAt=${committedAt})`
+          `(ts=${ts}, committedAt=${committedAt})`
       )
     }
     console.log('')
   }
 
   console.log(
-    'Hint: Use this output alongside the MemoryRegistry explorer view to ' +
-    'confirm that reasoning entries were committed before actions.'
+    deploymentTarget.supportsLegacyCreStack
+      ? 'Hint: Use this output alongside the MemoryRegistry explorer view to confirm that reasoning entries were committed before actions.'
+      : 'Hint: Use this output alongside HCS topic inspection to confirm that reasoning entries were committed before actions.'
   )
 }
 
-run().catch(err => {
-  console.error('[audit] Fatal error:', err)
-  process.exit(1)
-})
+if (import.meta.main) {
+  void runAudit().catch(err => {
+    console.error('[audit] Fatal error:', err)
+    process.exit(1)
+  })
+}

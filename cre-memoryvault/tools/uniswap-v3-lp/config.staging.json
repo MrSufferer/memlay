@@ -3,5 +3,6 @@
     "uniswapSubgraphUrl": "https://gateway.thegraph.com/api/b1ca3c6eb502c8b023b3c14686b5874b/subgraphs/id/FbCGRftH4a3yZugY7TnbYgPJVEv2LvMT6oF1fxPe9aJM",
     "owner": "system",
     "minTVL": 1000000,
-    "maxAgeDays": 1825
+    "maxAgeDays": 1825,
+    "publicKey": "0x0000000000000000000000000000000000000000"
 }

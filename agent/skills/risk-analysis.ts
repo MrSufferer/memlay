@@ -4,7 +4,7 @@
  * Takes RawOpportunity objects from any tool and produces ScoredOpportunity
  * by combining:
  *  - public CLMM/tool data from entryParams
- *  - private alpha/news signals fetched via ConfidentialHTTPClient
+ *  - private alpha/news signals fetched via a PrivateHttp-backed AlphaFetcher
  *  - trader's customInstructions from the TraderTemplate
  *
  * This skill runs in the agent service (Node.js/Bun), NOT in a CRE workflow.
@@ -59,6 +59,20 @@ export interface GeminiRiskResponse {
     reasoning: string
 }
 
+function buildVenueGuidance(opportunity: RawOpportunity): string[] {
+    if (opportunity.toolId === 'bonzo-vaults') {
+        return [
+            'Treat Bonzo opportunities as Hedera vault allocations, not CLMM tick-range trades.',
+            'For Bonzo vaults, weigh APY, APR, TVL, reward-token mix, vault type, and any health or freshness metadata in entryParams.',
+            'Do not penalize a Bonzo opportunity for missing pool-range or LP-specific fields when vault-level data is present.',
+        ]
+    }
+
+    return [
+        'For CLMM opportunities, weigh liquidity depth, fee APY, pool age, and pool-specific structure in entryParams.',
+    ]
+}
+
 /**
  * scoreOpportunity — core entrypoint for the Risk Analysis Skill.
  *
@@ -77,7 +91,7 @@ export async function scoreOpportunity(
 
     // 2) Build Gemini system prompt with trader instructions + strategy
     const systemPrompt = [
-        'You are a DeFi risk and opportunity scoring engine for CLMM and related strategies.',
+        'You are a DeFi risk and opportunity scoring engine for CLMM pools, yield vaults, and related strategies.',
         'You receive:',
         '- Raw opportunity data from a tool (pool statistics, trust signals, etc.).',
         '- Private alpha/news signals configured by the trader.',
@@ -86,6 +100,8 @@ export async function scoreOpportunity(
         '- Produce numeric opportunityScore (0-100) and trustScore (0-100).',
         "- Classify riskLevel as one of: LOW, MEDIUM, HIGH, SCAM.",
         '- Explain the reasoning in 1-2 concise paragraphs.',
+        '',
+        ...buildVenueGuidance(opportunity),
         '',
         `Trader strategy type: ${template.strategy.type}`,
         template.customInstructions
@@ -120,4 +136,3 @@ export async function scoreOpportunity(
         reasoning: scored.reasoning,
     }
 }
-

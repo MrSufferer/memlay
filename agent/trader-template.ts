@@ -19,6 +19,8 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { loadDeploymentTargetConfig } from './deploy-runtime-config'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Imports from Protocol Layer
@@ -262,7 +264,7 @@ export interface RiskConfig {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Default directory containing template JSON files (relative to this file) */
-const TEMPLATES_DIR = join(import.meta.dir, 'templates')
+const TEMPLATES_DIR = fileURLToPath(new URL('./templates', import.meta.url))
 
 /**
  * Load a trader template from disk.
@@ -284,12 +286,22 @@ const TEMPLATES_DIR = join(import.meta.dir, 'templates')
  */
 export function loadTemplate(agentId: string): TraderTemplate {
     const agentPath = join(TEMPLATES_DIR, `${agentId}.json`)
+    const hederaDefaultPath = join(TEMPLATES_DIR, 'hedera_bonzo_vaults.json')
     const defaultPath = join(TEMPLATES_DIR, 'clmm_lp.json')
+    const deploymentTarget = loadDeploymentTargetConfig()
 
     let templatePath: string
 
     if (existsSync(agentPath)) {
         templatePath = agentPath
+    } else if (
+        deploymentTarget.id === 'hedera' &&
+        existsSync(hederaDefaultPath)
+    ) {
+        console.warn(
+            `[trader-template] No template for agent '${agentId}', using default hedera_bonzo_vaults.json`
+        )
+        templatePath = hederaDefaultPath
     } else if (existsSync(defaultPath)) {
         console.warn(
             `[trader-template] No template for agent '${agentId}', using default clmm_lp.json`

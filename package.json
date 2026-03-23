@@ -1,6 +1,22 @@
 {
-  "dependencies": {},
+  "scripts": {
+    "hedera:bootstrap": "bun run agent/hedera/identity/bootstrap-agent.ts",
+    "hedera:publish-profile": "bun run agent/hedera/identity/publish-profile.ts",
+    "erc8004:build-registration": "bun run agent/erc8004/build-registration.ts",
+    "erc8004:register": "bun run agent/erc8004/register-agent.ts",
+    "erc8004:probe": "bun run agent/erc8004/probe-reliability.ts",
+    "erc8004:publish": "bun run agent/erc8004/publish-feedback.ts",
+    "erc8004:weekly": "bun run agent/erc8004/run-weekly-publisher.ts",
+    "test": "vitest run agent"
+  },
+  "dependencies": {
+    "@hashgraph/sdk": "^2.52.0",
+    "@hashgraphonline/standards-agent-kit": "^0.2.143",
+    "@hashgraphonline/standards-sdk": "^0.0.25",
+    "viem": "^2.34.0"
+  },
   "devDependencies": {
-    "@types/node": "^25.3.5"
+    "@types/node": "^25.3.5",
+    "vitest": "^2.1.9"
   }
 }

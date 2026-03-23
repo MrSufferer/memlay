@@ -1,4 +1,9 @@
 /**
+ * DEPRECATED
+ *
+ * This ACE stub is retained only for historical reference.
+ * Active private-transfer execution now uses `zama-confidential-client.ts`.
+ *
  * ACE Client — placeholder for private transfer interactions.
  *
  * For this MVP we keep the interface small and focused on what the
@@ -34,4 +39,3 @@ export class ACEClient {
         })
     }
 }
-

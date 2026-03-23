@@ -16326,8 +16326,7 @@ x-amz-date:${amzDate}
   const signature = hmacHex(kSigning, stringToSign);
   return `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 }
-function getDateComponents() {
-  const now = new Date;
+function getDateComponents(now) {
   const dateStamp = now.toISOString().replace(/[-:]/g, "").slice(0, 8);
   const amzDate = dateStamp + "T" + now.toISOString().replace(/[-:]/g, "").slice(9, 15) + "Z";
   return { dateStamp, amzDate };
@@ -16407,7 +16406,7 @@ var onHttpTrigger = (runtime2, payload) => {
   const httpClient = new cre.capabilities.HTTPClient;
   const prefix = `agents/${agentId}/log/`;
   const host = `${runtime2.config.s3Bucket}.s3.${runtime2.config.s3Region}.amazonaws.com`;
-  const { dateStamp, amzDate } = getDateComponents();
+  const { dateStamp, amzDate } = getDateComponents(runtime2.now());
   const emptyPayloadHash = sigV4Hash("");
   const listAuth = computeSigV4(awsAccessKeyId.value, awsSecretAccessKey.value, runtime2.config.s3Region, dateStamp, amzDate, "GET", "/", host, "", `prefix=${encodeURIComponent(prefix)}`);
   const fetchS3List = (sendRequester, listUrl) => {

@@ -1,82 +1,135 @@
 /**
  * MemoryVault Client — commits agent reasoning to the memory-writer workflow.
  *
- * Runs `cre workflow simulate protocol/memory-writer --http-payload '...'`
- * as a subprocess so the agent can commit entries without a deployed
- * HTTP trigger. Mirrors the CRETrigger pattern.
- *
- * The critical invariant: commitEntry() MUST succeed before any action
- * is executed. On failure the caller should abort the action.
+ * Runtime behavior:
+ *   - deploy mode: signed CRE gateway trigger to deployed memory-writer
+ *   - simulate mode: `cre workflow simulate protocol/memory-writer`
+ *   - auto mode: try deployed first, fallback to simulation
  */
 
 import type { MemoryEntryData } from '../cre-memoryvault/protocol/tool-interface'
 import { execFile } from 'child_process'
 import { fileURLToPath } from 'url'
 import { promisify } from 'util'
+import { DeployedTriggerClient } from './deployed-trigger-client'
+import {
+    hasDeployedTriggerConfig,
+    loadDeploymentTargetConfig,
+    loadTriggerAuthConfig,
+    resolveRuntimeMode,
+    type RuntimeMode,
+} from './deploy-runtime-config'
+import { loadWorkflowIdsFromEnv } from './workflow-ids'
 
 const execFileAsync = promisify(execFile)
 
 export interface MemoryClientConfig {
-    /**
-     * Gateway URL that forwards to the memory-writer workflow HTTP trigger.
-     * If set, the client uses HTTP instead of subprocess simulation.
-     */
-    memoryWriterUrl?: string
-    /**
-     * Absolute path to the cre-memoryvault directory.
-     * Defaults to ../cre-memoryvault relative to this file.
-     */
+    mode?: RuntimeMode
     creProjectDir?: string
-    /** Timeout for each simulate call. Defaults to 60 000 ms. */
     timeoutMs?: number
+    memoryWriterWorkflowId?: string
+    gatewayUrl?: string
+    signerPrivateKey?: string
 }
 
 export class MemoryClient {
+    private readonly mode: RuntimeMode
     private readonly creProjectDir: string
     private readonly timeoutMs: number
+    private readonly memoryWriterWorkflowId?: string
+    private readonly deployedClient: DeployedTriggerClient | null
+    private readonly deploymentTarget = loadDeploymentTargetConfig()
 
     constructor(private readonly config: MemoryClientConfig = {}) {
+        this.mode = config.mode ?? resolveRuntimeMode(process.env.CRE_RUNTIME_MODE)
         this.creProjectDir = config.creProjectDir
             ?? fileURLToPath(new URL('../cre-memoryvault', import.meta.url))
         this.timeoutMs = config.timeoutMs ?? 60_000
+        this.memoryWriterWorkflowId =
+            config.memoryWriterWorkflowId ??
+            loadWorkflowIdsFromEnv().memoryWriter
+
+        const auth = loadTriggerAuthConfig()
+        const gatewayUrl = config.gatewayUrl ?? auth.gatewayUrl
+        const privateKey = config.signerPrivateKey ?? auth.privateKey
+
+        if (hasDeployedTriggerConfig({ gatewayUrl, privateKey })) {
+            this.deployedClient = new DeployedTriggerClient({
+                gatewayUrl: gatewayUrl!,
+                privateKey: privateKey!,
+                timeoutMs: this.timeoutMs,
+            })
+        } else {
+            this.deployedClient = null
+        }
     }
 
-    /**
-     * Commit an entry to MemoryVault (S3 + on-chain hash).
-     *
-     * Uses the memory-writer CRE workflow via subprocess simulation.
-     * Throws on failure so the caller can enforce the pre-action invariant.
-     */
     async commitEntry(args: {
         agentId: string
         entryKey: string
         entryData: MemoryEntryData
     }): Promise<void> {
-        // ── HTTP path (for deployed workflows) ────────────────────────────────
-        if (this.config.memoryWriterUrl) {
-            await this.commitViaHttp(args)
-            return
+        if (!this.deploymentTarget.supportsLegacyCreStack) {
+            throw new Error(
+                `[MemoryClient] ${this.deploymentTarget.label} does not use the Sepolia CRE memory-writer. ` +
+                'Implement the Hedera memory anchor before executing actions on this target.'
+            )
         }
 
-        // ── Subprocess simulation path ─────────────────────────────────────────
+        if (this.mode !== 'simulate') {
+            try {
+                const didCommit = await this.commitViaDeployed(args)
+                if (didCommit) return
+            } catch (error) {
+                if (this.mode === 'deployed') {
+                    throw error
+                }
+                console.warn(`[MemoryClient] Deployed commit failed, falling back to simulate: ${String(error)}`)
+            }
+
+            if (this.mode === 'deployed') {
+                throw new Error('[MemoryClient] deploy mode active and no deployed commit path succeeded')
+            }
+        }
+
         await this.commitViaSim(args)
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
-
-    private async commitViaHttp(args: {
+    private async commitViaDeployed(args: {
         agentId: string
         entryKey: string
         entryData: MemoryEntryData
-    }): Promise<void> {
-        const res = await fetch(this.config.memoryWriterUrl!, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(args),
-        })
-        if (!res.ok) {
-            throw new Error(`[MemoryClient] HTTP commit failed: ${res.status} ${res.statusText}`)
+    }): Promise<boolean> {
+        if (!this.deployedClient || !this.memoryWriterWorkflowId) {
+            return false
         }
+
+        const raw = await this.deployedClient.triggerWorkflow({
+            workflowId: this.memoryWriterWorkflowId,
+            input: {
+                agentId: args.agentId,
+                entryKey: args.entryKey,
+                entryData: args.entryData,
+            },
+        })
+
+        const result = parseMemoryWriterResult(raw)
+        if (!result) {
+            throw new Error('[MemoryClient] Could not parse deployed memory-writer response')
+        }
+
+        if (result.status !== 'success') {
+            throw new Error(
+                `[MemoryClient] deployed memory-writer returned status=${result.status}: ${result.error ?? '(no error field)'}`
+            )
+        }
+
+        console.log(
+            `[MemoryClient] ✅ Deployed commit: key=${result.entryKey} ` +
+            `hash=${result.entryHash?.slice(0, 12)}... s3=${result.s3Key}`
+        )
+
+        return true
     }
 
     private async commitViaSim(args: {
@@ -118,7 +171,6 @@ export class MemoryClient {
             )
         }
 
-        // Parse and log the result (status=success means S3+chain commit worked)
         const result = parseMemoryWriterResult(stdout)
         if (!result) {
             throw new Error('[MemoryClient] Could not parse memory-writer sim output')
@@ -136,8 +188,6 @@ export class MemoryClient {
     }
 }
 
-// ── Result Parsing ────────────────────────────────────────────────────────────
-
 interface MemoryWriterResult {
     status: 'success' | 'failed'
     agentId?: string
@@ -149,34 +199,39 @@ interface MemoryWriterResult {
     error?: string
 }
 
-function parseMemoryWriterResult(stdout: string): MemoryWriterResult | null {
-    const RESULT_MARKER = 'Simulation Result:'
-    const lines = stdout.split('\n')
-    const markerIdx = lines.findIndex(l => l.includes(RESULT_MARKER))
-
-    if (markerIdx === -1) return null
-
-    const resultLines: string[] = []
-    for (let i = markerIdx + 1; i < lines.length; i++) {
-        const trimmed = lines[i].trim()
-        if (!trimmed) break
-        resultLines.push(trimmed)
-    }
-    const rawResult = resultLines.join('').trim()
-    if (!rawResult) return null
-
-    try {
-        const parsed = JSON.parse(rawResult)
-        // CLI ≥1.3: plain object
-        if (typeof parsed === 'object' && parsed !== null) {
-            return parsed as MemoryWriterResult
+function parseMemoryWriterResult(input: unknown): MemoryWriterResult | null {
+    if (typeof input === 'string') {
+        const marker = 'Simulation Result:'
+        const markerIdx = input.indexOf(marker)
+        if (markerIdx !== -1) {
+            const after = input.slice(markerIdx + marker.length)
+            const line = after
+                .split('\n')
+                .map(l => l.trim())
+                .find(Boolean)
+            if (!line) return null
+            try {
+                return parseMemoryWriterResult(JSON.parse(line))
+            } catch {
+                return null
+            }
         }
-        // CLI ≤1.2: double-encoded string
-        if (typeof parsed === 'string') {
-            return JSON.parse(parsed) as MemoryWriterResult
+
+        const trimmed = input.trim()
+        if (!trimmed) return null
+        try {
+            return parseMemoryWriterResult(JSON.parse(trimmed))
+        } catch {
+            return null
         }
-    } catch {
-        // fall through
     }
+
+    if (input == null || typeof input !== 'object') return null
+
+    const parsed = input as Record<string, unknown>
+    if (typeof parsed.status === 'string' && (parsed.status === 'success' || parsed.status === 'failed')) {
+        return parsed as MemoryWriterResult
+    }
+
     return null
 }

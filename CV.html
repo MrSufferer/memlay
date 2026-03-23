@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV - Nhân viên Bán hàng Part-time</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .cv-container {
+            max-width: 850px;
+            margin: 40px auto;
+            background: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .section-title {
+            color: #111827;
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+
+        /* Ẩn các nút rườm rà khi in ra PDF */
+        @media print {
+            body {
+                background-color: white;
+            }
+            .cv-container {
+                box-shadow: none;
+                margin: 0;
+                border-radius: 0;
+                max-width: 100%;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Hướng dẫn in cho người dùng (Sẽ ẩn khi in PDF) -->
+    <div class="text-center py-4 bg-blue-100 text-blue-800 font-semibold no-print mb-4">
+        <i class="fas fa-info-circle mr-2"></i> Chỉnh sửa thông tin trực tiếp trong code, sau đó nhấn <strong>Ctrl + P</strong> (hoặc Cmd + P) và chọn <strong>Save as PDF</strong> (Lưu dưới dạng PDF) để xuất file!
+    </div>
+
+    <div class="cv-container">
+        
+        <!-- Header Section -->
+        <header class="bg-gray-900 text-white px-10 py-10 flex flex-col md:flex-row justify-between items-center">
+            <div class="flex flex-col md:flex-row items-center mb-6 md:mb-0 gap-6">
+                <!-- Avatar -->
+                <div class="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-500 shadow-lg shrink-0">
+                    <img src="https://lh3.googleusercontent.com/a/ACg8ocIHiiFBP_oUgXnrjRCR726lKx5feIgMtndq9I3ct2fVXbPvXKQ=s634-c-no" alt="Ảnh đại diện" class="w-full h-full object-cover">
+                </div>
+                <!-- Name & Title -->
+                <div class="text-center md:text-left">
+                    <h1 class="text-4xl font-bold tracking-wider uppercase mb-2">NGUYỄN HỮU TÂM KIÊN</h1>
+                    <h2 class="text-xl text-blue-400 font-medium">Ứng tuyển: Nhân viên Bán hàng Part-time</h2>
+                </div>
+            </div>
+            <!-- Contact Info -->
+            <div class="text-sm text-gray-300 space-y-2 shrink-0 text-align-left">
+                <p class="flex items-center gap-2 justify-center md:justify-start"><i class="fas fa-phone-alt w-4"></i> 0812024321</p>
+                <p class="flex items-center gap-2 justify-center md:justify-start"><i class="fas fa-envelope w-4"></i> nguyenhuutamkien@gmail.com</p>
+                <p class="flex items-center gap-2 justify-center md:justify-start"><i class="fas fa-map-marker-alt w-4"></i> 91/30 Cù Chính Lan, TP. Đà Nẵng</p>
+                <p class="flex items-center gap-2 justify-center md:justify-start"><i class="fab fa-facebook w-4"></i> fb.com/nguyenhtkien</p>
+            </div>
+        </header>
+
+        <!-- Main Content Section -->
+        <div class="p-10 grid grid-cols-1 md:grid-cols-3 gap-10">
+            
+            <!-- Cột trái (Nhỏ hơn) -->
+            <div class="md:col-span-1 space-y-8">
+                
+                <!-- Mục tiêu nghề nghiệp -->
+                <section>
+                    <h3 class="section-title">Mục Tiêu</h3>
+                    <p class="text-gray-600 text-sm leading-relaxed text-justify">
+                        Là một người trẻ năng động, có thế mạnh về tư duy giải quyết vấn đề và kinh nghiệm trực tiếp cọ xát trong lĩnh vực dịch vụ khách hàng. Mong muốn trở thành Nhân viên Bán hàng để mang đến trải nghiệm mua sắm chuyên nghiệp, đồng thời đóng góp vào mục tiêu doanh số chung.
+                    </p>
+                </section>
+
+                <!-- Kỹ năng -->
+                <section>
+                    <h3 class="section-title">Kỹ Năng</h3>
+                    <ul class="space-y-3 text-sm text-gray-700">
+                        <li>
+                            <div class="font-semibold text-gray-900 mb-1">Giao tiếp & Nắm bắt tâm lý</div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: 85%"></div></div>
+                        </li>
+                        <li>
+                            <div class="font-semibold text-gray-900 mb-1">Xử lý tình huống linh hoạt</div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: 90%"></div></div>
+                        </li>
+                        <li>
+                            <div class="font-semibold text-gray-900 mb-1">Thao tác máy POS/Phần mềm</div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: 95%"></div></div>
+                        </li>
+                        <li>
+                            <div class="font-semibold text-gray-900 mb-1">Làm việc nhóm</div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5"><div class="bg-blue-500 h-1.5 rounded-full" style="width: 80%"></div></div>
+                        </li>
+                    </ul>
+                </section>
+
+                <!-- Học vấn -->
+                <section>
+                    <h3 class="section-title">Học Vấn</h3>
+                    <div class="mb-3">
+                        <h4 class="font-bold text-gray-800">Đại học Duy Tân</h4>
+                        <p class="text-sm text-blue-600 font-medium">2023 - 2027</p>
+                        <p class="text-sm text-gray-600 mt-1">Chuyên ngành: Công nghệ phần mềm</p>
+                    </div>
+                </section>
+
+                <!-- Ngôn ngữ -->
+                <section>
+                    <h3 class="section-title">Ngoại Ngữ</h3>
+                    <div class="text-sm text-gray-700">
+                        <p><span class="font-semibold">Tiếng Anh:</span> Giao tiếp cơ bản IELTS 6.0 (Có thể hỗ trợ khách nước ngoài)</p>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Cột phải (Lớn hơn - Kinh nghiệm) -->
+            <div class="md:col-span-2 space-y-8">
+                
+                <section>
+                    <h3 class="section-title">Kinh Nghiệm Làm Việc</h3>
+                    
+                    <!-- Kinh nghiệm 1 -->
+                    <div class="mb-6">
+                        <div class="flex flex-col md:flex-row md:justify-between md:items-baseline mb-2">
+                            <h4 class="text-lg font-bold text-gray-800">Nhân viên Phục vụ</h4>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-600 mb-2">Midnight Condo | Đà Nẵng</p>
+                        <p class="text-sm text-gray-500 italic mb-2">Nhịp độ dồn dập của môi trường quán bar đã giúp tôi nhanh chóng thích nghi với áp lực ngành dịch vụ.</p>
+                        <ul class="list-disc list-outside ml-4 text-sm text-gray-700 space-y-1.5 leading-relaxed">
+                            <li><strong>Phản xạ nhanh nhạy:</strong> Luyện tập khả năng quan sát và đón tiếp khách hàng linh hoạt trong các khung giờ cao điểm, đông đúc.</li>
+                            <li><strong>Giao tiếp & Tư vấn:</strong> Chủ động tương tác, lắng nghe sở thích của khách hàng để gợi ý các loại đồ uống phù hợp.</li>
+                            <li><strong>Hỗ trợ vận hành:</strong> Phối hợp nhịp nhàng với bộ phận Bartender để đảm bảo tốc độ phục vụ order chính xác nhất.</li>
+                        </ul>
+                    </div>
+
+                    <!-- Kinh nghiệm 2 -->
+                    <div>
+                        <div class="flex flex-col md:flex-row md:justify-between md:items-baseline mb-2">
+                            <h4 class="text-lg font-bold text-gray-800">Thực tập sinh Lập trình Di động (Mobile Dev Intern)</h4>
+                            <span class="text-sm text-blue-600 font-medium">03/2025 – 06/2025</span>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-600 mb-2">JobChat | Đà Nẵng</p>
+                        <p class="text-sm text-gray-500 italic mb-2">Trải nghiệm làm Mobile Dev giúp rèn luyện tư duy logic, thói quen cẩn thận và kỹ năng đặt mình vào góc nhìn của người dùng.</p>
+                        <ul class="list-disc list-outside ml-4 text-sm text-gray-700 space-y-1.5 leading-relaxed">
+                            <li><strong>Tư duy trải nghiệm khách hàng (UI/UX):</strong> Tham gia phát triển giao diện ứng dụng di động, học cách thấu hiểu tâm lý và thói quen của người dùng (khách hàng) để mang lại trải nghiệm mượt mà nhất.</li>
+                            <li><strong>Khả năng nắm bắt công nghệ:</strong> Nhạy bén với phần mềm. Tự tin có thể học và thao tác cực kỳ thuần thục trên hệ thống máy POS, phần mềm quản lý kho trong thời gian ngắn nhất.</li>
+                            <li><strong>Giao tiếp công sở:</strong> Báo cáo tiến độ minh bạch và phối hợp hiệu quả trong các dự án làm việc nhóm.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Thông tin bổ sung -->
+                <section>
+                    <h3 class="section-title">Thông Tin Bổ Sung</h3>
+                    <ul class="list-disc list-outside ml-4 text-sm text-gray-700 space-y-1.5 leading-relaxed">
+                        <li><strong>Thời gian làm việc:</strong> Có thể sắp xếp linh hoạt các ca sáng/chiều/tối. Sẵn sàng làm việc cuối tuần hoặc Lễ Tết theo phân công của quản lý.</li>
+                        <li><strong>Tính cách:</strong> Trung thực, dạn dĩ, học hỏi nhanh, có trách nhiệm cao và sức khỏe tốt (có thể đứng làm việc liên tục nhiều giờ).</li>
+                    </ul>
+                </section>
+
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

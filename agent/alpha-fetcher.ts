@@ -21,14 +21,19 @@
  * If no sources are configured, the fetcher falls back to the default
  * provider using RAPIDAPI_KEY_VAR from the environment.
  *
- * In the CRE workflow context, API keys would be fetched via
- * `runtime.getSecret({ id: 'RAPIDAPI_KEY' })`. In the agent service
- * (Node.js/Bun) they are loaded from `process.env[secretEnvVar]`.
+ * The Hedera target must not assume private/confidential HTTP exists yet.
+ * Requests therefore flow through a PrivateHttpClient abstraction, which can
+ * either use direct env-backed HTTP (legacy path) or an explicit stub mode
+ * that returns deterministic empty results with status metadata.
  */
 
 import type { AlphaFetcher, AlphaSignal } from './skills/risk-analysis'
 import type { RawOpportunity } from '../cre-memoryvault/protocol/tool-interface'
 import type { TraderTemplate, AlphaSource } from './trader-template'
+import {
+    createPrivateHttpClient,
+    type PrivateHttpClient,
+} from './private-http-client'
 
 const RAPIDAPI_HOST = 'crypto-news51.p.rapidapi.com'
 const BASE_URL = `https://${RAPIDAPI_HOST}/api/v1/crypto/articles/search`
@@ -98,15 +103,8 @@ function mapSentiment(label?: string): 'bullish' | 'bearish' | 'neutral' {
 async function fetchFromSource(
     source: AlphaSource,
     symbol: string,
+    privateHttpClient: PrivateHttpClient,
 ): Promise<AlphaSignal[]> {
-    const apiKey = process.env[source.secretEnvVar]
-    if (!apiKey) {
-        console.warn(
-            `[AlphaFetcher] ${source.id}: env var "${source.secretEnvVar}" not set — skipping`
-        )
-        return []
-    }
-
     const baseUrl = source.baseUrl ?? BASE_URL
     const url =
         `${baseUrl}` +
@@ -116,24 +114,29 @@ async function fetchFromSource(
     console.log(`[AlphaFetcher] ${source.id}: fetching 24h news for token: ${symbol}`)
 
     let articles: NewsArticle[] = []
-    try {
-        const resp = await fetch(url, {
-            headers: {
-                'x-rapidapi-host': RAPIDAPI_HOST,
-                'x-rapidapi-key': apiKey,
-            },
-        })
+    const response = await privateHttpClient.fetch({
+        url,
+        sourceId: source.id,
+        headers: {
+            'x-rapidapi-host': RAPIDAPI_HOST,
+        },
+        secretHeader: {
+            headerName: 'x-rapidapi-key',
+            envVar: source.secretEnvVar,
+        },
+    })
 
-        if (!resp.ok) {
-            console.warn(`[AlphaFetcher] ${source.id}: API returned ${resp.status} for ${symbol}`)
-            return []
-        }
-
-        articles = (await resp.json()) as NewsArticle[]
-    } catch (err) {
-        console.warn(`[AlphaFetcher] ${source.id}: fetch error:`, err)
+    if (response.status !== 'success') {
+        console.warn(
+            `[AlphaFetcher] ${source.id}: ${response.status} for ${symbol} ` +
+            `(${response.metadata.reason})`
+        )
         return []
     }
+
+    articles = Array.isArray(response.bodyJson)
+        ? (response.bodyJson as NewsArticle[])
+        : []
 
     if (!Array.isArray(articles) || articles.length === 0) {
         console.log(`[AlphaFetcher] ${source.id}: no news articles found for ${symbol}`)
@@ -167,28 +170,32 @@ async function fetchFromSource(
  *
  * Results from all configured sources are combined into a single AlphaSignal[].
  */
-export const cryptoNewsAlphaFetcher: AlphaFetcher = {
-    async fetchAlpha(
-        opportunity: RawOpportunity,
-        template: TraderTemplate,
-    ): Promise<AlphaSignal[]> {
-        const symbol = extractTokenSymbol(opportunity)
+export function createCryptoNewsAlphaFetcher(
+    privateHttpClient: PrivateHttpClient = createPrivateHttpClient()
+): AlphaFetcher {
+    return {
+        async fetchAlpha(
+            opportunity: RawOpportunity,
+            template: TraderTemplate,
+        ): Promise<AlphaSignal[]> {
+            const symbol = extractTokenSymbol(opportunity)
 
-        // Resolve alpha sources from template; fall back to default if none configured
-        const hasTemplateSources = template.alpha?.sources && template.alpha.sources.length > 0
-        const sources: AlphaSource[] = hasTemplateSources
-            ? template.alpha!.sources
-            : [DEFAULT_SOURCE]
+            const hasTemplateSources = template.alpha?.sources && template.alpha.sources.length > 0
+            const sources: AlphaSource[] = hasTemplateSources
+                ? template.alpha!.sources
+                : [DEFAULT_SOURCE]
 
-        if (!hasTemplateSources) {
-            console.log(`[AlphaFetcher] No alpha.sources in template — using default (${DEFAULT_SOURCE.id})`)
-        }
+            if (!hasTemplateSources) {
+                console.log(`[AlphaFetcher] No alpha.sources in template — using default (${DEFAULT_SOURCE.id})`)
+            }
 
-        // Fetch from all configured sources and merge results
-        const allSignals = await Promise.all(
-            sources.map(source => fetchFromSource(source, symbol))
-        )
+            const allSignals = await Promise.all(
+                sources.map(source => fetchFromSource(source, symbol, privateHttpClient))
+            )
 
-        return allSignals.flat()
-    },
+            return allSignals.flat()
+        },
+    }
 }
+
+export const cryptoNewsAlphaFetcher = createCryptoNewsAlphaFetcher()

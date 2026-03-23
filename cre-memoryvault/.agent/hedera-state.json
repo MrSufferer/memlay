@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "accountId": "0.0.8345807",
+  "privateKeyRef": "file:/Users/kyler/repos/cre-por-llm-demo/cre-memoryvault/.agent/hedera-state.agent.key",
+  "inboundTopicId": "0.0.8345810",
+  "outboundTopicId": "0.0.8345809",
+  "profileTopicId": "0.0.8345852",
+  "network": "testnet",
+  "createdAt": "2026-03-23T15:35:34.481Z",
+  "updatedAt": "2026-03-23T15:38:22.996Z"
+}
