@@ -135,7 +135,7 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-docs/
+docs/ai/
 .ai-devkit.json
 .cursor/
 examples/

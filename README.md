@@ -1,5 +1,9 @@
 # MemoryVault Agent Protocol
 
+<p align="center">
+  <img src="docs/erc8004/agent-image.png" alt="MemoryVault Agent" width="200" />
+</p>
+
 A 3-layer protocol for autonomous DeFi AI agents with pluggable tools, private execution, and verifiable episodic memory — built on [Chainlink Runtime Environment (CRE)](https://docs.chain.link/cre).
 
 > **Also in this repo:** `por/` — the original CRE Proof-of-Reserve + LLM demo. See [PoR Demo](#proof-of-reserve-llm-demo-por).
