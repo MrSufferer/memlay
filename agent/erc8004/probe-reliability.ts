@@ -7,19 +7,21 @@ export interface ProbeOptions {
   timeoutMs?: number
 }
 
-async function probeEndpoint(
+export async function probeEndpoint(
   endpoint: ReliabilityEndpointConfig,
   options: Required<ProbeOptions>
 ): Promise<EndpointProbeResult> {
   const durations: number[] = []
   let successCount = 0
+  const attempts = options.attempts ?? 5
+  const timeoutMs = options.timeoutMs ?? 10_000
 
-  for (let i = 0; i < options.attempts; i++) {
+  for (let i = 0; i < attempts; i++) {
     const method = endpoint.method ?? 'GET'
     const startedAt = Date.now()
 
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs)
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
       const response = await fetch(endpoint.endpoint, {
@@ -40,7 +42,6 @@ async function probeEndpoint(
     }
   }
 
-  const attempts = options.attempts
   const successRate = attempts > 0 ? (successCount / attempts) * 100 : 0
 
   return {

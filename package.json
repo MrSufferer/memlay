@@ -1,7 +1,8 @@
 {
   "scripts": {
-    "hedera:bootstrap": "bun run agent/hedera/identity/bootstrap-agent.ts",
+    "hedera:bootstrap": "bun run agent/scripts/hedera-bootstrap.ts",
     "hedera:publish-profile": "bun run agent/hedera/identity/publish-profile.ts",
+    "hedera:bonzo-live-trade": "bun run agent/scripts/bonzo-live-trade.ts",
     "erc8004:build-registration": "bun run agent/erc8004/build-registration.ts",
     "erc8004:register": "bun run agent/erc8004/register-agent.ts",
     "erc8004:probe": "bun run agent/erc8004/probe-reliability.ts",

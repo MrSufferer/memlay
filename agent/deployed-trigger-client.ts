@@ -157,14 +157,14 @@ export class DeployedTriggerClient {
         const encodedPayload = toBase64Url(JSON.stringify(payload))
         const signingInput = `${encodedHeader}.${encodedPayload}`
 
-        const digestHex = `0x${createHash('sha256').update(signingInput).digest('hex')}` as Hex
+        const hashHex = `0x${createHash('sha256').update(signingInput).digest('hex')}`
         const signatureHex = await sign({
-            hash: digestHex,
+            hash: hashHex,
             privateKey: this.privateKey,
             to: 'hex',
         })
 
-        const encodedSignature = toBase64Url(hexToBytes(signatureHex as Hex))
+        const encodedSignature = toBase64Url(hexToBytes(signatureHex))
         return `${signingInput}.${encodedSignature}`
     }
 }

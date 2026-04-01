@@ -32,6 +32,52 @@ bun run erc8004:publish               # Publish feedback on-chain
 bun run erc8004:weekly                # Run weekly publisher
 ```
 
+### Hedera Agent Deployment (HCS-10 / HCS-11)
+
+**Bootstrap** — one-time operator setup (idempotent, safe to re-run):
+```bash
+bun --env-file=.env run agent/scripts/hedera-bootstrap.ts
+```
+Creates or attaches an HCS-10/HCS-11 agent identity, persists state to `HEDERA_STATE_STORE_PATH`, and publishes the HCS-11 profile.
+
+**Live Bonzo Vault trade** (standalone, no memory commits):
+```bash
+# Mainnet live execution
+HEDERA_NETWORK=mainnet \
+HEDERA_OPERATOR_ID=<operator> \
+HEDERA_OPERATOR_KEY=<key> \
+BONZO_EXECUTION_MODE=live \
+BONZO_CONTRACT_RPC_URL=<rpc> \
+BONZO_DATA_SOURCE=contracts \
+bun --env-file=.env run agent/scripts/bonzo-live-trade.ts
+```
+
+**Agent loop** (memory anchoring + Bonzo scan/enter/exit/monitor):
+```bash
+MEMORYVAULT_DEPLOYMENT_TARGET=hedera \
+HEDERA_NETWORK=mainnet \
+AGENT_ID=agent-hedera-01 \
+bun --env-file=.env run agent/index.ts
+```
+
+**Required env vars for Hedera:**
+- `HEDERA_NETWORK` — `mainnet` or `testnet`
+- `HEDERA_OPERATOR_ID` / `HEDERA_OPERATOR_KEY` — operator account
+- `HEDERA_MIRROR_NODE_URL` — e.g. `https://mainnet.mirrornode.hedera.com/api/v1`
+- `HEDERA_STATE_STORE_PATH` — defaults to `.agent/hedera-state.json`
+
+**For live Bonzo execution on mainnet, also:**
+- `BONZO_EXECUTION_MODE=live`
+- `BONZO_DATA_SOURCE=contracts`
+- `BONZO_CONTRACT_RPC_URL` — Hedera JSON-RPC endpoint
+- `BONZO_EXECUTOR_MODE=operator|dedicated` (default: `operator` reuses operator signer)
+- `BONZO_EXECUTOR_ACCOUNT_ID` / `BONZO_EXECUTOR_PRIVATE_KEY` — required when `dedicated`
+
+**For memory anchoring on mainnet:**
+- `HEDERA_MEMORY_TOPIC_ID` — pre-created HCS topic for MemoryVault commitments
+- `HEDERA_MEMORY_S3_BUCKET` / `HEDERA_MEMORY_S3_REGION` — S3 for encrypted blob storage
+- `AES_KEY_VAR` — 32-byte hex AES-256 key for envelope encryption
+
 ### CRE Workflow Simulation
 
 All CRE workflows must be run from the `cre-memoryvault/` directory:
@@ -151,7 +197,12 @@ Copy `.env.sample` to `.env` and fill in:
 - `RAPIDAPI_KEY_VAR` — crypto-news51 alpha source
 - `AWS_ACCESS_KEY_ID_VAR` / `AWS_SECRET_ACCESS_KEY_VAR` — S3 for episodic memory
 - `ACE_API_URL` — ACE privacy layer (stubbed in MVP)
-- `ERC8004_*` — ERC-8004 identity/reputation registry config
+- `ERC8004_IDENTITY_REGISTRY` / `ERC8004_REPUTATION_REGISTRY` — deployed contract addresses on Sepolia
+- `ERC8004_BASE_URL` — base URL for computing registration URI (default: `https://example.github.io/cre-por-llm-demo`)
+- `ERC8004_REGISTRATION_URI` — optional: fully-specified override for the on-chain URI written by `erc8004:register`
+- `ERC8004_OWNER_PRIVATE_KEY` — private key for on-chain registration transactions (falls back to `CRE_ETH_PRIVATE_KEY`)
+- `ERC8004_AGENT_ID` — set after initial registration to enable update mode (`setAgentURI`)
+- `ERC8004_DRY_RUN=1` — skip on-chain transaction in `erc8004:weekly` and `erc8004:publish`
 
 **Important:** `cre-memoryvault/.env` must contain the same secrets (CRE CLI reads it for workflow simulations). Easiest approach: `cp .env cre-memoryvault/.env`
 

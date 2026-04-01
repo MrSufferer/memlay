@@ -89,7 +89,7 @@ graph TD
 | `cre-memoryvault/tools/uniswap-v3-lp/` | MVP tool: scanner (cron) + monitor (cron) |
 | `agent/` | Agent service + skills (risk-analysis, trader-template, zama-confidential-client, cre-trigger, memory-client) |
 | `agent/templates/` | Pre-built trader strategy templates (JSON) |
-| `contracts/` | `MemoryRegistry.sol` deployed to Sepolia |
+| `contracts/` | `MemoryRegistry.sol`, `ERC8004IdentityRegistry.sol`, `ERC8004ReputationRegistry.sol` — all deployed to Sepolia |
 | `server/` | Mock data API + Uniswap subgraph metrics adapter |
 | `demo/` | End-to-end demo script + scenario helpers |
 
@@ -103,7 +103,7 @@ graph TD
 |---|---|---|
 | **Bun** | ≥ 1.2.21 | `bun --version` |
 | **CRE CLI** | ≥ 1.3.0 | `cre --version` — get it at [docs.chain.link/cre](https://docs.chain.link/cre/getting-started/cli-installation) |
-| **Foundry** | latest | Only needed to redeploy `MemoryRegistry.sol` — already deployed |
+| **Foundry** | latest | Needed to redeploy `MemoryRegistry.sol`, `ERC8004IdentityRegistry.sol`, or `ERC8004ReputationRegistry.sol` — all already deployed on Sepolia |
 | **ETH on Sepolia** | — | For on-chain memory commits via `writeReport` |
 
 ### Install
@@ -468,6 +468,52 @@ struct Commitment {
 
 mapping(bytes32 => Commitment) public commitments;
 mapping(string => bytes32[])   public agentHashes;
+```
+
+---
+
+## ERC-8004 Agent Identity & Reputation
+
+ERC-8004 registers the MemoryVault agent on-chain and publishes weekly reliability signals to a reputation registry. Both registries are live on Sepolia.
+
+### Deployed Contracts (Sepolia)
+
+| Contract | Address |
+|---|---|
+| `ERC8004IdentityRegistry` | `0x2042A98Bf0AF522c8aa2B879fc0bF627454F5016` |
+| `ERC8004ReputationRegistry` | `0x898EAeA8ce4b1Bc42Bf996788B62e83487bAAdA5` |
+| Registered agent (tokenId 1) | `0xeD37FD0d6F0f69236E7472B36796e133D20EcC32` |
+
+The identity registry is ERC-721 based — agents are tokens with `tokenURI` pointing to the agent's public registration JSON at `https://example.github.io/cre-por-llm-demo/erc8004/registration.sepolia.json`.
+
+### Scripts
+
+```bash
+bun run erc8004:build-registration  # Generate registration JSON artifacts → docs/erc8004/
+bun run erc8004:register             # Register (or update URI if already registered)
+bun run erc8004:probe                # Probe reliability endpoints
+bun run erc8004:publish              # Publish one round of reputation signals on-chain
+bun run erc8004:weekly               # probe + publish (used by GitHub Actions)
+```
+
+**GitHub Actions** — `erc8004-reputation-weekly.yml` runs every Monday at midnight UTC. It probes the four workflow endpoints, builds feedback entries, and publishes them to the reputation registry. Configure secrets in **Settings → Secrets → Actions**:
+
+| Secret | Value |
+|---|---|
+| `RPC_URL` | Sepolia RPC endpoint |
+| `ERC8004_IDENTITY_REGISTRY` | `0x2042A98Bf0AF522c8aa2B879fc0bF627454F5016` |
+| `ERC8004_REPUTATION_REGISTRY` | `0x898EAeA8ce4b1Bc42Bf996788B62e83487bAAdA5` |
+| `ERC8004_AGENT_ID` | `1` |
+| `ERC8004_WATCHTOWER_PRIVATE_KEY` | Funded Sepolia key for `giveFeedback` calls |
+| `ERC8004_BASE_URL` | Base URL for registration JSON (e.g. GitHub Pages URL) |
+
+**Redeploying contracts** — if you modify `ERC8004IdentityRegistry.sol` or `ERC8004ReputationRegistry.sol`, redeploy with Foundry:
+
+```bash
+cd contracts
+# Set SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com in foundry.toml or .env
+forge script script/DeployERC8004.s.sol --rpc-url sepolia --broadcast -v
+# Script prints new addresses — update them in .env and .env.sample
 ```
 
 ---

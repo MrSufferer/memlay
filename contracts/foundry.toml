@@ -7,8 +7,12 @@ script = "script"
 remappings = [
     "@openzeppelin/=lib/openzeppelin-contracts/"
 ]
+optimizer = true
+optimizer_runs = 200
+via_ir = true
 
 [rpc_endpoints]
-sepolia = "${RPC_URL}"
+sepolia = "${SEPOLIA_RPC_URL}"
+mainnet = "https://arbitrum-mainnet.infura.io/v3/59574000b3804e53bbfa3e2d415c1259"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
