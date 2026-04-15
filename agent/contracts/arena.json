@@ -1,0 +1,217 @@
+{
+  "$schema": "https://docs.openzeppelin.com/contracts/0.8.x/api/abi/ABI",
+  "contractName": "Arena",
+  "sourceName": "contracts/Arena.sol",
+  "deployedNetwork": {
+    "195": {
+      "address": "0x824af7339b4fFC04D0FD867953eCbfCc75dEAf18",
+      "transactionHash": "0xc38e6c5f871f05088ab639f35af9de83bd3488b656938959414150933d44d994",
+      "deployedAt": "2026-04-16",
+      "network": "X Layer Testnet (chainId 195)",
+      "deployer": "0xeD37FD0d6F0f69236E7472B36796e133D20EcC32"
+    }
+  },
+  "abi": [
+    {
+      "type": "function",
+      "name": "registerAgent",
+      "inputs": [
+        { "name": "agentName", "type": "string", "internalType": "string calldata" },
+        { "name": "extraData", "type": "bytes", "internalType": "bytes calldata" }
+      ],
+      "outputs": [],
+      "stateMutability": "payable"
+    },
+    {
+      "type": "function",
+      "name": "reportTrade",
+      "inputs": [
+        { "name": "pnl", "type": "int256", "internalType": "int256" },
+        { "name": "sharpeScaled", "type": "uint256", "internalType": "uint256" },
+        { "name": "extraData", "type": "bytes", "internalType": "bytes calldata" }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "challenge",
+      "inputs": [
+        { "name": "opponent", "type": "address", "internalType": "address" },
+        { "name": "stakeAmount", "type": "uint256", "internalType": "uint256" },
+        { "name": "durationBlocks", "type": "uint256", "internalType": "uint256" }
+      ],
+      "outputs": [],
+      "stateMutability": "payable"
+    },
+    {
+      "type": "function",
+      "name": "resolveChallenge",
+      "inputs": [
+        { "name": "challengeId", "type": "bytes32", "internalType": "bytes32" },
+        { "name": "challengerPnL", "type": "int256", "internalType": "int256" },
+        { "name": "opponentPnL", "type": "int256", "internalType": "int256" }
+      ],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "getLeaderboard",
+      "inputs": [],
+      "outputs": [
+        {
+          "components": [
+            { "name": "wallet", "type": "address", "internalType": "address" },
+            { "name": "agentName", "type": "string", "internalType": "string" },
+            { "name": "cumulativePnL", "type": "int256", "internalType": "int256" },
+            { "name": "sharpeRatioScaled", "type": "uint256", "internalType": "uint256" },
+            { "name": "maxDrawdown", "type": "int256", "internalType": "int256" },
+            { "name": "tradeCount", "type": "uint256", "internalType": "uint256" },
+            { "name": "wins", "type": "uint256", "internalType": "uint256" },
+            { "name": "losses", "type": "uint256", "internalType": "uint256" },
+            { "name": "lastActivityBlock", "type": "uint256", "internalType": "uint256" },
+            { "name": "registeredAt", "type": "uint256", "internalType": "uint256" },
+            { "name": "isActive", "type": "bool", "internalType": "bool" },
+            { "name": "extraData", "type": "bytes", "internalType": "bytes" }
+          ],
+          "name": "",
+          "type": "tuple[]",
+          "internalType": "struct Arena.AgentStats[]"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getAgentStats",
+      "inputs": [{ "name": "wallet", "type": "address", "internalType": "address" }],
+      "outputs": [
+        {
+          "components": [
+            { "name": "wallet", "type": "address", "internalType": "address" },
+            { "name": "agentName", "type": "string", "internalType": "string" },
+            { "name": "cumulativePnL", "type": "int256", "internalType": "int256" },
+            { "name": "sharpeRatioScaled", "type": "uint256", "internalType": "uint256" },
+            { "name": "maxDrawdown", "type": "int256", "internalType": "int256" },
+            { "name": "tradeCount", "type": "uint256", "internalType": "uint256" },
+            { "name": "wins", "type": "uint256", "internalType": "uint256" },
+            { "name": "losses", "type": "uint256", "internalType": "uint256" },
+            { "name": "lastActivityBlock", "type": "uint256", "internalType": "uint256" },
+            { "name": "registeredAt", "type": "uint256", "internalType": "uint256" },
+            { "name": "isActive", "type": "bool", "internalType": "bool" },
+            { "name": "extraData", "type": "bytes", "internalType": "bytes" }
+          ],
+          "name": "",
+          "type": "tuple",
+          "internalType": "struct Arena.AgentStats"
+        }
+      ],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "isAgentRegistered",
+      "inputs": [{ "name": "wallet", "type": "address", "internalType": "address" }],
+      "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "getAgentRank",
+      "inputs": [{ "name": "wallet", "type": "address", "internalType": "address" }],
+      "outputs": [{ "name": "rank", "type": "uint256", "internalType": "uint256" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "agentCount",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "function",
+      "name": "deactivateAgent",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "reactivateAgent",
+      "inputs": [],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "updateExtraData",
+      "inputs": [{ "name": "extraData", "type": "bytes", "internalType": "bytes calldata" }],
+      "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "registrationFee",
+      "inputs": [],
+      "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+      "stateMutability": "view"
+    },
+    {
+      "type": "event",
+      "name": "AgentRegistered",
+      "inputs": [
+        { "name": "wallet", "type": "address", "indexed": true },
+        { "name": "agentName", "type": "string", "indexed": false },
+        { "name": "registeredAtBlock", "type": "uint256", "indexed": false }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "TradeReported",
+      "inputs": [
+        { "name": "wallet", "type": "address", "indexed": true },
+        { "name": "tradeIndex", "type": "uint256", "indexed": false },
+        { "name": "pnl", "type": "int256", "indexed": false },
+        { "name": "sharpeScaled", "type": "uint256", "indexed": false },
+        { "name": "drawdownAtTrade", "type": "int256", "indexed": false }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "LeaderboardUpdated",
+      "inputs": [
+        { "name": "wallet", "type": "address", "indexed": true },
+        { "name": "newRank", "type": "uint256", "indexed": false },
+        { "name": "cumulativePnL", "type": "int256", "indexed": false }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ChallengeCreated",
+      "inputs": [
+        { "name": "challengeId", "type": "bytes32", "indexed": true },
+        { "name": "challenger", "type": "address", "indexed": true },
+        { "name": "opponent", "type": "address", "indexed": true },
+        { "name": "stakeAmount", "type": "uint256", "indexed": false },
+        { "name": "durationBlocks", "type": "uint256", "indexed": false }
+      ],
+      "anonymous": false
+    },
+    {
+      "type": "event",
+      "name": "ChallengeResolved",
+      "inputs": [
+        { "name": "challengeId", "type": "bytes32", "indexed": true },
+        { "name": "winner", "type": "address", "indexed": false },
+        { "name": "challengerScore", "type": "int256", "indexed": false },
+        { "name": "opponentScore", "type": "int256", "indexed": false }
+      ],
+      "anonymous": false
+    }
+  ]
+}

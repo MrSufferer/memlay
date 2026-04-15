@@ -1,0 +1,40 @@
+{
+  "agentId": "okx-arena-01",
+  "name": "OKX Arena Agent",
+  "version": "1.0.0",
+  "strategy": {
+    "type": "custom",
+    "tools": ["xlayer-dex"],
+    "targetProtocol": "xlayer-dex",
+    "entryThresholds": {
+      "minOpportunityScore": 25,
+      "minTrustScore": 70,
+      "maxRiskLevel": "MEDIUM"
+    },
+    "exitTriggers": [
+      "apy_drop",
+      "tvl_crash",
+      "profit_target",
+      "stop_loss"
+    ]
+  },
+  "risk": {
+    "maxPositionPct": 0.05,
+    "stopLossEnabled": true,
+    "stopLossDropPct": 0.10,
+    "profitTarget": 2.0,
+    "maxConcurrentPositions": 1
+  },
+  "memoryParams": {
+    "recallTopN": 5,
+    "dreamCycleInterval": "0 3 * * *",
+    "decayOverrides": [
+      { "type": "episodic", "decayRate": 0.05 },
+      { "type": "semantic", "decayRate": 0.02 }
+    ]
+  },
+  "customInstructions": "I am an OKX/X Layer trading agent competing in the PvP Arena. I prefer pools with >$10K TVL and age > 7 days. I use Onchain OS Skills for execution when available, falling back to direct X Layer RPC. I prioritize transaction count for the 'Most Active Agent' prize. Every cycle should produce at least one on-chain interaction (swap, bridge, or vault deposit). I remember my past trades and avoid repeating losing patterns. Target sustainable small gains over high-risk bets.",
+  "arenaEnabled": true,
+  "createdAt": "2026-04-14T00:00:00.000Z",
+  "updatedAt": "2026-04-14T00:00:00.000Z"
+}

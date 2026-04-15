@@ -14,5 +14,9 @@ via_ir = true
 [rpc_endpoints]
 sepolia = "${SEPOLIA_RPC_URL}"
 mainnet = "https://arbitrum-mainnet.infura.io/v3/59574000b3804e53bbfa3e2d415c1259"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+base_mainnet = "${BASE_MAINNET_RPC_URL}"
+xlayer_testnet = "${X_LAYER_RPC_URL}"
+xlayer_mainnet = "https://rpc.xlayer.tech"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

@@ -18,7 +18,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadDeploymentTargetConfig } from './deploy-runtime-config'
 
@@ -82,6 +82,39 @@ export interface AlphaConfig {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Memory Parameters
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Memory system configuration for a trader agent.
+ * Controls recall depth, dream cycle scheduling, and per-type decay overrides.
+ */
+export interface MemoryParams {
+    /**
+     * Maximum number of memories to retrieve per recall call.
+     * Semantic and procedural memories are ranked highest.
+     * @default 5
+     */
+    recallTopN: number
+
+    /**
+     * Cron expression for dream cycle scheduling (UTC).
+     * Default: 3am daily — low-traffic window for consolidation.
+     * @default '0 3 * * *'
+     */
+    dreamCycleInterval: string
+
+    /**
+     * Optional per-type decay rate overrides.
+     * Use when a trader's strategy requires faster/slower forgetting.
+     */
+    decayOverrides?: Array<{
+        type: 'episodic' | 'semantic' | 'procedural' | 'self_model' | 'introspective'
+        decayRate: number
+    }>
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TraderTemplate Interface
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -142,6 +175,9 @@ export interface TraderTemplate {
      * }
      */
     alpha?: AlphaConfig
+
+    /** Memory system configuration — controls recall depth, dream cycle, and decay rates */
+    memoryParams?: MemoryParams
 
     /** ISO 8601 timestamp of when this template was created */
     createdAt: string
@@ -264,7 +300,8 @@ export interface RiskConfig {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Default directory containing template JSON files (relative to this file) */
-const TEMPLATES_DIR = fileURLToPath(new URL('./templates', import.meta.url))
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const TEMPLATES_DIR = join(__dirname, 'templates')
 
 /**
  * Load a trader template from disk.
@@ -380,6 +417,18 @@ function validateTemplate(t: TraderTemplate): void {
     }
     if (t.risk.maxConcurrentPositions < 1) {
         throw new Error('[trader-template] maxConcurrentPositions must be >= 1')
+    }
+    if (t.memoryParams !== undefined) {
+        if (typeof t.memoryParams.recallTopN !== 'number' || t.memoryParams.recallTopN < 1) {
+            throw new Error('[trader-template] memoryParams.recallTopN must be >= 1')
+        }
+        if (t.memoryParams.decayOverrides) {
+            for (const o of t.memoryParams.decayOverrides) {
+                if (o.decayRate < 0 || o.decayRate > 1) {
+                    throw new Error(`[trader-template] memoryParams.decayOverrides decayRate must be 0-1, got ${o.decayRate}`)
+                }
+            }
+        }
     }
 }
 

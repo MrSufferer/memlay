@@ -1,5 +1,5 @@
 export type RuntimeMode = 'auto' | 'simulate' | 'deployed'
-export type DeploymentTarget = 'sepolia' | 'hedera'
+export type DeploymentTarget = 'sepolia' | 'hedera' | 'okx'
 
 export interface TriggerAuthConfig {
     gatewayUrl?: string
@@ -26,6 +26,12 @@ export const DEPLOYMENT_TARGETS: Record<DeploymentTarget, DeploymentTargetConfig
         identityProtocol: 'hcs',
         supportsLegacyCreStack: false,
     },
+    okx: {
+        id: 'okx',
+        label: 'OKX / X Layer',
+        identityProtocol: 'erc8004',
+        supportsLegacyCreStack: false,
+    },
 }
 
 export function resolveRuntimeMode(value?: string): RuntimeMode {
@@ -41,6 +47,10 @@ export function resolveRuntimeMode(value?: string): RuntimeMode {
 
 export function resolveDeploymentTarget(value?: string): DeploymentTarget {
     switch ((value ?? '').trim().toLowerCase()) {
+        case 'okx':
+        case 'xlayer':
+        case 'x-layer':
+            return 'okx'
         case 'hedera':
         case 'hedera-testnet':
         case 'hedera-mainnet':
